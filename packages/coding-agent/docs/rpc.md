@@ -607,6 +607,29 @@ If an extension cancelled the fork:
 }
 ```
 
+#### navigate_tree
+
+Navigate to a branch entry in the session tree (same as pi-web branch navigation).
+
+```json
+{"type": "navigate_tree", "targetId": "abc123"}
+```
+
+With optional branch summary:
+```json
+{"type": "navigate_tree", "targetId": "abc123", "summarize": true, "customInstructions": "Focus on API changes"}
+```
+
+Response:
+```json
+{
+  "type": "response",
+  "command": "navigate_tree",
+  "success": true,
+  "data": {"cancelled": false, "editorText": "Optional user message text at target"}
+}
+```
+
 #### clone
 
 Duplicate the current active branch into a new session at the current position. Can be cancelled by a `session_before_fork` extension event handler.
@@ -737,6 +760,44 @@ Each command has:
 - `path`: Absolute file path to the command source (optional)
 
 **Note**: Built-in TUI commands (`/settings`, `/hotkeys`, etc.) are not included. They are handled only in interactive mode and would not execute if sent via `prompt`.
+
+### Tools
+
+#### get_tools
+
+List configured tools and whether each is currently active.
+
+```json
+{"type": "get_tools"}
+```
+
+Response:
+```json
+{
+  "type": "response",
+  "command": "get_tools",
+  "success": true,
+  "data": {
+    "tools": [
+      {"name": "read", "description": "Read a file", "active": true},
+      {"name": "bash", "description": "Run a shell command", "active": false}
+    ]
+  }
+}
+```
+
+#### set_tools
+
+Set active tools by name (same as pi-web tool presets).
+
+```json
+{"type": "set_tools", "toolNames": ["read", "grep", "glob"]}
+```
+
+Response:
+```json
+{"type": "response", "command": "set_tools", "success": true}
+```
 
 ## Events
 

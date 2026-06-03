@@ -8,6 +8,8 @@
 - Added NVIDIA NIM provider selection, setup documentation, and direct NIM request attribution headers.
 - Added `ctx.mode` to extension contexts so extensions can distinguish TUI, RPC, JSON, and print mode.
 - Added `ctx.getSystemPromptOptions()` for extension commands to inspect the current base system prompt inputs.
+- Documented pi-web remote deployment and OAuth callback notes in [pi-web-remote.md](docs/pi-web-remote.md).
+- RPC commands `navigate_tree`, `get_tools`, and `set_tools` for parity with pi-web session branching and tool presets ([rpc.md](docs/rpc.md)).
 
 ### Fixed
 

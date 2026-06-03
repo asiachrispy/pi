@@ -601,6 +601,19 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 				return success(id, "clone", { cancelled: result.cancelled });
 			}
 
+			case "navigate_tree": {
+				const result = await session.navigateTree(command.targetId, {
+					summarize: command.summarize,
+					customInstructions: command.customInstructions,
+					replaceInstructions: command.replaceInstructions,
+					label: command.label,
+				});
+				return success(id, "navigate_tree", {
+					cancelled: result.cancelled,
+					editorText: result.editorText,
+				});
+			}
+
 			case "get_fork_messages": {
 				const messages = session.getUserMessagesForForking();
 				return success(id, "get_fork_messages", { messages });
@@ -663,6 +676,21 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 				}
 
 				return success(id, "get_commands", { commands });
+			}
+
+			case "get_tools": {
+				const active = new Set(session.getActiveToolNames());
+				const tools = session.getAllTools().map((tool) => ({
+					name: tool.name,
+					description: tool.description,
+					active: active.has(tool.name),
+				}));
+				return success(id, "get_tools", { tools });
+			}
+
+			case "set_tools": {
+				session.setActiveToolsByName(command.toolNames);
+				return success(id, "set_tools");
 			}
 
 			default: {

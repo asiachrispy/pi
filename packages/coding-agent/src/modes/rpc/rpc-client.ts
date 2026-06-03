@@ -381,6 +381,22 @@ export class RpcClient {
 	}
 
 	/**
+	 * Navigate to a branch entry in the session tree.
+	 */
+	async navigateTree(
+		targetId: string,
+		options?: {
+			summarize?: boolean;
+			customInstructions?: string;
+			replaceInstructions?: boolean;
+			label?: string;
+		},
+	): Promise<{ cancelled: boolean; editorText?: string }> {
+		const response = await this.send({ type: "navigate_tree", targetId, ...options });
+		return this.getData(response);
+	}
+
+	/**
 	 * Get messages available for forking.
 	 */
 	async getForkMessages(): Promise<Array<{ entryId: string; text: string }>> {
@@ -417,6 +433,21 @@ export class RpcClient {
 	async getCommands(): Promise<RpcSlashCommand[]> {
 		const response = await this.send({ type: "get_commands" });
 		return this.getData<{ commands: RpcSlashCommand[] }>(response).commands;
+	}
+
+	/**
+	 * List configured tools and whether each is active.
+	 */
+	async getTools(): Promise<Array<{ name: string; description?: string; active: boolean }>> {
+		const response = await this.send({ type: "get_tools" });
+		return this.getData<{ tools: Array<{ name: string; description?: string; active: boolean }> }>(response).tools;
+	}
+
+	/**
+	 * Set active tools by name.
+	 */
+	async setTools(toolNames: string[]): Promise<void> {
+		await this.send({ type: "set_tools", toolNames });
 	}
 
 	// =========================================================================

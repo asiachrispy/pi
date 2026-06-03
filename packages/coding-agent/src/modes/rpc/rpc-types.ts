@@ -58,6 +58,15 @@ export type RpcCommand =
 	| { id?: string; type: "switch_session"; sessionPath: string }
 	| { id?: string; type: "fork"; entryId: string }
 	| { id?: string; type: "clone" }
+	| {
+			id?: string;
+			type: "navigate_tree";
+			targetId: string;
+			summarize?: boolean;
+			customInstructions?: string;
+			replaceInstructions?: boolean;
+			label?: string;
+	  }
 	| { id?: string; type: "get_fork_messages" }
 	| { id?: string; type: "get_last_assistant_text" }
 	| { id?: string; type: "set_session_name"; name: string }
@@ -66,7 +75,11 @@ export type RpcCommand =
 	| { id?: string; type: "get_messages" }
 
 	// Commands (available for invocation via prompt)
-	| { id?: string; type: "get_commands" };
+	| { id?: string; type: "get_commands" }
+
+	// Tools
+	| { id?: string; type: "get_tools" }
+	| { id?: string; type: "set_tools"; toolNames: string[] };
 
 // ============================================================================
 // RPC Slash Command (for get_commands response)
@@ -177,6 +190,13 @@ export type RpcResponse =
 	| {
 			id?: string;
 			type: "response";
+			command: "navigate_tree";
+			success: true;
+			data: { cancelled: boolean; editorText?: string };
+	  }
+	| {
+			id?: string;
+			type: "response";
 			command: "get_fork_messages";
 			success: true;
 			data: { messages: Array<{ entryId: string; text: string }> };
@@ -201,6 +221,16 @@ export type RpcResponse =
 			success: true;
 			data: { commands: RpcSlashCommand[] };
 	  }
+
+	// Tools
+	| {
+			id?: string;
+			type: "response";
+			command: "get_tools";
+			success: true;
+			data: { tools: Array<{ name: string; description?: string; active: boolean }> };
+	  }
+	| { id?: string; type: "response"; command: "set_tools"; success: true }
 
 	// Error response (any command can fail)
 	| { id?: string; type: "response"; command: string; success: false; error: string };
