@@ -81,6 +81,46 @@ function identityConverter(messages: AgentMessage[]): Message[] {
 }
 
 describe("agentLoop with AgentMessage", () => {
+	it("should end the stream with an error message when runAgentLoop rejects", async () => {
+		const context: AgentContext = {
+			systemPrompt: "You are helpful.",
+			messages: [],
+			tools: [],
+		};
+		const config: AgentLoopConfig = {
+			model: createModel(),
+			convertToLlm: () => {
+				throw new Error("conversion failed");
+			},
+		};
+
+		const stream = agentLoop([createUserMessage("Hello")], context, config);
+		const events: AgentEvent[] = [];
+
+		for await (const event of stream) {
+			events.push(event);
+		}
+
+		const messages = await stream.result();
+		expect(messages).toHaveLength(1);
+		expect(messages[0].role).toBe("assistant");
+		if (messages[0].role !== "assistant") {
+			throw new Error("Expected assistant message");
+		}
+		expect(messages[0].stopReason).toBe("error");
+		expect(messages[0].errorMessage).toBe("conversion failed");
+		expect(events.map((event) => event.type)).toEqual([
+			"agent_start",
+			"turn_start",
+			"message_start",
+			"message_end",
+			"message_start",
+			"message_end",
+			"turn_end",
+			"agent_end",
+		]);
+	});
+
 	it("should emit events with AgentMessage types", async () => {
 		const context: AgentContext = {
 			systemPrompt: "You are helpful.",

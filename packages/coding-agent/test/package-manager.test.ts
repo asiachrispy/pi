@@ -691,6 +691,38 @@ Content`,
 	});
 
 	describe("npmCommand", () => {
+		it("should disable lifecycle scripts for managed npm installs", async () => {
+			const runCommandSpy = vi.spyOn(packageManager as any, "runCommand").mockResolvedValue(undefined);
+
+			await packageManager.install("npm:@scope/pkg");
+
+			expect(runCommandSpy).toHaveBeenCalledWith(
+				"npm",
+				expect.arrayContaining(["install", "@scope/pkg", "--ignore-scripts"]),
+				undefined,
+			);
+		});
+
+		it("should disable lifecycle scripts when installing git package dependencies", async () => {
+			const source = "git:github.com/user/repo";
+			const targetDir = join(agentDir, "git", "github.com", "user", "repo");
+			const runCommandSpy = vi
+				.spyOn(packageManager as any, "runCommand")
+				.mockImplementation(async (...callArgs: unknown[]) => {
+					const [command, args] = callArgs as [string, string[]];
+					if (command === "git" && args[0] === "clone") {
+						mkdirSync(targetDir, { recursive: true });
+						writeFileSync(join(targetDir, "package.json"), JSON.stringify({ name: "repo", version: "1.0.0" }));
+					}
+				});
+
+			await packageManager.install(source);
+
+			expect(runCommandSpy).toHaveBeenCalledWith("npm", ["install", "--omit=dev", "--ignore-scripts"], {
+				cwd: targetDir,
+			});
+		});
+
 		it("should use npmCommand argv for npm installs", async () => {
 			settingsManager = SettingsManager.inMemory({
 				npmCommand: ["mise", "exec", "node@20", "--", "npm"],
@@ -717,6 +749,7 @@ Content`,
 					"--prefix",
 					join(agentDir, "npm"),
 					"--legacy-peer-deps",
+					"--ignore-scripts",
 				],
 				undefined,
 			);
@@ -738,12 +771,23 @@ Content`,
 
 			expect(runCommandSpy).toHaveBeenCalledWith(
 				"mise",
-				["exec", "bun@1", "--", "bun", "install", "@scope/pkg", "--cwd", join(agentDir, "npm"), "--omit=peer"],
+				[
+					"exec",
+					"bun@1",
+					"--",
+					"bun",
+					"install",
+					"@scope/pkg",
+					"--cwd",
+					join(agentDir, "npm"),
+					"--omit=peer",
+					"--ignore-scripts",
+				],
 				undefined,
 			);
 		});
 
-		it("should install git package dependencies with --omit=dev", async () => {
+		it("should install git package dependencies with --omit=dev and --ignore-scripts", async () => {
 			const source = "git:github.com/user/repo";
 			const targetDir = join(agentDir, "git", "github.com", "user", "repo");
 			const runCommandSpy = vi
@@ -758,7 +802,9 @@ Content`,
 
 			await packageManager.install(source);
 
-			expect(runCommandSpy).toHaveBeenCalledWith("npm", ["install", "--omit=dev"], { cwd: targetDir });
+			expect(runCommandSpy).toHaveBeenCalledWith("npm", ["install", "--omit=dev", "--ignore-scripts"], {
+				cwd: targetDir,
+			});
 		});
 
 		it("should reconcile an existing git checkout to a pinned ref during install", async () => {
@@ -786,7 +832,9 @@ Content`,
 				cwd: targetDir,
 			});
 			expect(runCommandSpy).toHaveBeenCalledWith("git", ["clean", "-fdx"], { cwd: targetDir });
-			expect(runCommandSpy).toHaveBeenCalledWith("npm", ["install", "--omit=dev"], { cwd: targetDir });
+			expect(runCommandSpy).toHaveBeenCalledWith("npm", ["install", "--omit=dev", "--ignore-scripts"], {
+				cwd: targetDir,
+			});
 		});
 
 		it("should reconcile an existing git checkout to its update target when installing without a ref", async () => {
@@ -821,7 +869,7 @@ Content`,
 			expect(runCommandSpy).toHaveBeenCalledWith("git", ["clean", "-fdx"], { cwd: targetDir });
 		});
 
-		it("should use plain install for git package dependencies when npmCommand is configured", async () => {
+		it("should use install without dev-pruning for git package dependencies when npmCommand is configured", async () => {
 			settingsManager = SettingsManager.inMemory({
 				npmCommand: ["pnpm"],
 			});
@@ -845,10 +893,10 @@ Content`,
 
 			await packageManager.install(source);
 
-			expect(runCommandSpy).toHaveBeenCalledWith("pnpm", ["install"], { cwd: targetDir });
+			expect(runCommandSpy).toHaveBeenCalledWith("pnpm", ["install", "--ignore-scripts"], { cwd: targetDir });
 		});
 
-		it("should update git package dependencies with --omit=dev", async () => {
+		it("should update git package dependencies with --omit=dev and --ignore-scripts", async () => {
 			const source = "git:github.com/user/repo";
 			const targetDir = join(tempDir, ".pi", "git", "github.com", "user", "repo");
 			mkdirSync(targetDir, { recursive: true });
@@ -872,10 +920,12 @@ Content`,
 
 			await packageManager.update(source);
 
-			expect(runCommandSpy).toHaveBeenCalledWith("npm", ["install", "--omit=dev"], { cwd: targetDir });
+			expect(runCommandSpy).toHaveBeenCalledWith("npm", ["install", "--omit=dev", "--ignore-scripts"], {
+				cwd: targetDir,
+			});
 		});
 
-		it("should use plain install through npmCommand argv when updating git package dependencies", async () => {
+		it("should use install without dev-pruning through npmCommand argv when updating git package dependencies", async () => {
 			settingsManager = SettingsManager.inMemory({
 				npmCommand: ["mise", "exec", "node@20", "--", "pnpm"],
 			});
@@ -908,9 +958,13 @@ Content`,
 
 			await packageManager.update(source);
 
-			expect(runCommandSpy).toHaveBeenCalledWith("mise", ["exec", "node@20", "--", "pnpm", "install"], {
-				cwd: targetDir,
-			});
+			expect(runCommandSpy).toHaveBeenCalledWith(
+				"mise",
+				["exec", "node@20", "--", "pnpm", "install", "--ignore-scripts"],
+				{
+					cwd: targetDir,
+				},
+			);
 		});
 
 		it("should use npmCommand argv for npm root lookup and invalidate cached root when npmCommand changes", () => {
@@ -980,6 +1034,7 @@ Content`,
 						"--config.auto-install-peers=false",
 						"--config.strict-peer-dependencies=false",
 						"--config.strict-dep-builds=false",
+						"--ignore-scripts",
 					]);
 					mkdirSync(join(packagePath, "extensions"), { recursive: true });
 					writeFileSync(join(packagePath, "package.json"), JSON.stringify({ name: "pnpm-pkg", version: "1.0.0" }));
@@ -2070,7 +2125,14 @@ export default function(api) { api.registerTool({ name: "test", description: "te
 			);
 			expect(runCommandSpy).toHaveBeenCalledWith(
 				"npm",
-				["install", "example@latest", "--prefix", join(tempDir, ".pi", "npm"), "--legacy-peer-deps"],
+				[
+					"install",
+					"example@latest",
+					"--prefix",
+					join(tempDir, ".pi", "npm"),
+					"--legacy-peer-deps",
+					"--ignore-scripts",
+				],
 				undefined,
 			);
 		});
@@ -2115,6 +2177,7 @@ export default function(api) { api.registerTool({ name: "test", description: "te
 						"--prefix",
 						join(agentDir, "npm"),
 						"--legacy-peer-deps",
+						"--ignore-scripts",
 					]);
 					mkdirSync(managedPath, { recursive: true });
 					writeFileSync(
@@ -2232,6 +2295,7 @@ export default function(api) { api.registerTool({ name: "test", description: "te
 					"--prefix",
 					join(agentDir, "npm"),
 					"--legacy-peer-deps",
+					"--ignore-scripts",
 				],
 				undefined,
 			);
@@ -2245,6 +2309,7 @@ export default function(api) { api.registerTool({ name: "test", description: "te
 					"--prefix",
 					join(tempDir, ".pi", "npm"),
 					"--legacy-peer-deps",
+					"--ignore-scripts",
 				],
 				undefined,
 			);

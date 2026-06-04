@@ -46,9 +46,13 @@ export function agentLoop(
 		},
 		signal,
 		streamFn,
-	).then((messages) => {
-		stream.end(messages);
-	});
+	)
+		.then((messages) => {
+			stream.end(messages);
+		})
+		.catch((error: unknown) => {
+			emitLoopFailure(stream, config, error, signal?.aborted === true);
+		});
 
 	return stream;
 }
@@ -85,9 +89,13 @@ export function agentLoopContinue(
 		},
 		signal,
 		streamFn,
-	).then((messages) => {
-		stream.end(messages);
-	});
+	)
+		.then((messages) => {
+			stream.end(messages);
+		})
+		.catch((error: unknown) => {
+			emitLoopFailure(stream, config, error, signal?.aborted === true);
+		});
 
 	return stream;
 }
@@ -147,6 +155,40 @@ function createAgentStream(): EventStream<AgentEvent, AgentMessage[]> {
 		(event: AgentEvent) => event.type === "agent_end",
 		(event: AgentEvent) => (event.type === "agent_end" ? event.messages : []),
 	);
+}
+
+function createFailureMessage(config: AgentLoopConfig, error: unknown, aborted: boolean): AssistantMessage {
+	return {
+		role: "assistant",
+		content: [{ type: "text", text: "" }],
+		api: config.model.api,
+		provider: config.model.provider,
+		model: config.model.id,
+		usage: {
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+			totalTokens: 0,
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+		},
+		stopReason: aborted ? "aborted" : "error",
+		errorMessage: error instanceof Error ? error.message : String(error),
+		timestamp: Date.now(),
+	};
+}
+
+function emitLoopFailure(
+	stream: EventStream<AgentEvent, AgentMessage[]>,
+	config: AgentLoopConfig,
+	error: unknown,
+	aborted: boolean,
+): void {
+	const failureMessage = createFailureMessage(config, error, aborted);
+	stream.push({ type: "message_start", message: failureMessage });
+	stream.push({ type: "message_end", message: failureMessage });
+	stream.push({ type: "turn_end", message: failureMessage, toolResults: [] });
+	stream.push({ type: "agent_end", messages: [failureMessage] });
 }
 
 /**
