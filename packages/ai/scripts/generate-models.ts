@@ -68,6 +68,15 @@ const KIMI_STATIC_HEADERS = {
 	"User-Agent": "KimiCLI/1.5",
 } as const;
 
+const AGNES_BASE_URL = "https://agnes-ai.com/api/v1";
+const AGNES_COMPAT: OpenAICompletionsCompat = {
+	supportsStore: false,
+	supportsDeveloperRole: false,
+	supportsReasoningEffort: true,
+	maxTokensField: "max_tokens",
+	supportsStrictMode: false,
+	supportsLongCacheRetention: false,
+};
 const TOGETHER_BASE_URL = "https://api.together.ai/v1";
 const TOGETHER_BASE_COMPAT: OpenAICompletionsCompat = {
 	supportsStore: false,
@@ -1867,6 +1876,51 @@ async function generateModels() {
 			contextWindow: 262144, // 256k tokens
 			maxTokens: 262144,
 		});
+	}
+
+	// Add Agnes AI models (OpenAI-compatible, not on models.dev)
+	const agnesModels: Model<"openai-completions">[] = [
+		{
+			id: "sapiens-ai/agnes-1.5-pro",
+			name: "Agnes 1.5 Pro",
+			api: "openai-completions",
+			provider: "agnes",
+			baseUrl: AGNES_BASE_URL,
+			reasoning: true,
+			input: ["text"],
+			cost: {
+				input: 1.6e-7,
+				output: 8e-7,
+				cacheRead: 0,
+				cacheWrite: 0,
+			},
+			contextWindow: 256000,
+			maxTokens: 32768,
+			compat: AGNES_COMPAT,
+		},
+		{
+			id: "sapiens-ai/agnes-1.5-lite",
+			name: "Agnes 1.5 Lite",
+			api: "openai-completions",
+			provider: "agnes",
+			baseUrl: AGNES_BASE_URL,
+			reasoning: false,
+			input: ["text", "image"],
+			cost: {
+				input: 1.2e-7,
+				output: 6e-7,
+				cacheRead: 0,
+				cacheWrite: 0,
+			},
+			contextWindow: 256000,
+			maxTokens: 32768,
+			compat: AGNES_COMPAT,
+		},
+	];
+	for (const model of agnesModels) {
+		if (!allModels.some(m => m.provider === model.provider && m.id === model.id)) {
+			allModels.push(model);
+		}
 	}
 
 	// Add "auto" alias for openrouter/auto

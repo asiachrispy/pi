@@ -4,6 +4,44 @@
 import type { Model } from "./types.ts";
 
 export const MODELS = {
+	"agnes": {
+		"sapiens-ai/agnes-1.5-lite": {
+			id: "sapiens-ai/agnes-1.5-lite",
+			name: "Agnes 1.5 Lite",
+			api: "openai-completions",
+			provider: "agnes",
+			baseUrl: "https://agnes-ai.com/api/v1",
+			compat: {"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":true,"maxTokensField":"max_tokens","supportsStrictMode":false,"supportsLongCacheRetention":false},
+			reasoning: false,
+			input: ["text", "image"],
+			cost: {
+				input: 1.2e-7,
+				output: 6e-7,
+				cacheRead: 0,
+				cacheWrite: 0,
+			},
+			contextWindow: 256000,
+			maxTokens: 32768,
+		} satisfies Model<"openai-completions">,
+		"sapiens-ai/agnes-1.5-pro": {
+			id: "sapiens-ai/agnes-1.5-pro",
+			name: "Agnes 1.5 Pro",
+			api: "openai-completions",
+			provider: "agnes",
+			baseUrl: "https://agnes-ai.com/api/v1",
+			compat: {"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":true,"maxTokensField":"max_tokens","supportsStrictMode":false,"supportsLongCacheRetention":false},
+			reasoning: true,
+			input: ["text"],
+			cost: {
+				input: 1.6e-7,
+				output: 8e-7,
+				cacheRead: 0,
+				cacheWrite: 0,
+			},
+			contextWindow: 256000,
+			maxTokens: 32768,
+		} satisfies Model<"openai-completions">,
+	},
 	"amazon-bedrock": {
 		"amazon.nova-2-lite-v1:0": {
 			id: "amazon.nova-2-lite-v1:0",
@@ -3869,8 +3907,8 @@ export const MODELS = {
 				cacheRead: 0.1,
 				cacheWrite: 0,
 			},
-			contextWindow: 128000,
-			maxTokens: 8192,
+			contextWindow: 262144,
+			maxTokens: 65536,
 		} satisfies Model<"anthropic-messages">,
 		"accounts/fireworks/routers/glm-5p1-fast": {
 			id: "accounts/fireworks/routers/glm-5p1-fast",
@@ -8651,6 +8689,23 @@ export const MODELS = {
 			contextWindow: 1000000,
 			maxTokens: 65536,
 		} satisfies Model<"anthropic-messages">,
+		"qwen3.7-plus": {
+			id: "qwen3.7-plus",
+			name: "Qwen3.7 Plus",
+			api: "anthropic-messages",
+			provider: "opencode-go",
+			baseUrl: "https://opencode.ai/zen/go",
+			reasoning: true,
+			input: ["text", "image"],
+			cost: {
+				input: 0.4,
+				output: 1.6,
+				cacheRead: 0.04,
+				cacheWrite: 0.5,
+			},
+			contextWindow: 262144,
+			maxTokens: 65536,
+		} satisfies Model<"anthropic-messages">,
 	},
 	"openrouter": {
 		"ai21/jamba-large-1.7": {
@@ -10638,23 +10693,6 @@ export const MODELS = {
 			contextWindow: 8191,
 			maxTokens: 4096,
 		} satisfies Model<"openai-completions">,
-		"openai/gpt-4-0314": {
-			id: "openai/gpt-4-0314",
-			name: "OpenAI: GPT-4 (older v0314)",
-			api: "openai-completions",
-			provider: "openrouter",
-			baseUrl: "https://openrouter.ai/api/v1",
-			reasoning: false,
-			input: ["text"],
-			cost: {
-				input: 30,
-				output: 60,
-				cacheRead: 0,
-				cacheWrite: 0,
-			},
-			contextWindow: 8191,
-			maxTokens: 4096,
-		} satisfies Model<"openai-completions">,
 		"openai/gpt-4-1106-preview": {
 			id: "openai/gpt-4-1106-preview",
 			name: "OpenAI: GPT-4 Turbo (older v1106)",
@@ -12401,6 +12439,23 @@ export const MODELS = {
 			contextWindow: 1000000,
 			maxTokens: 65536,
 		} satisfies Model<"openai-completions">,
+		"qwen/qwen3.7-plus": {
+			id: "qwen/qwen3.7-plus",
+			name: "Qwen: Qwen3.7 Plus",
+			api: "openai-completions",
+			provider: "openrouter",
+			baseUrl: "https://openrouter.ai/api/v1",
+			reasoning: true,
+			input: ["text", "image"],
+			cost: {
+				input: 0.39999999999999997,
+				output: 1.5999999999999999,
+				cacheRead: 0.08,
+				cacheWrite: 0.5,
+			},
+			contextWindow: 1000000,
+			maxTokens: 65536,
+		} satisfies Model<"openai-completions">,
 		"rekaai/reka-edge": {
 			id: "rekaai/reka-edge",
 			name: "Reka Edge",
@@ -12841,7 +12896,7 @@ export const MODELS = {
 				cacheWrite: 0,
 			},
 			contextWindow: 202752,
-			maxTokens: 16384,
+			maxTokens: 4096,
 		} satisfies Model<"openai-completions">,
 		"z-ai/glm-5-turbo": {
 			id: "z-ai/glm-5-turbo",
@@ -12875,7 +12930,7 @@ export const MODELS = {
 				cacheWrite: 0,
 			},
 			contextWindow: 202752,
-			maxTokens: 131072,
+			maxTokens: 4096,
 		} satisfies Model<"openai-completions">,
 		"z-ai/glm-5v-turbo": {
 			id: "z-ai/glm-5v-turbo",
@@ -13448,7 +13503,7 @@ export const MODELS = {
 			provider: "vercel-ai-gateway",
 			baseUrl: "https://ai-gateway.vercel.sh",
 			reasoning: true,
-			input: ["text", "image"],
+			input: ["text"],
 			cost: {
 				input: 1.3,
 				output: 7.8,
@@ -13720,7 +13775,7 @@ export const MODELS = {
 			provider: "vercel-ai-gateway",
 			baseUrl: "https://ai-gateway.vercel.sh",
 			reasoning: true,
-			input: ["text", "image"],
+			input: ["text"],
 			cost: {
 				input: 1.25,
 				output: 3.75,
@@ -14152,7 +14207,7 @@ export const MODELS = {
 			provider: "vercel-ai-gateway",
 			baseUrl: "https://ai-gateway.vercel.sh",
 			reasoning: true,
-			input: ["text", "image"],
+			input: ["text"],
 			cost: {
 				input: 0.435,
 				output: 0.87,
@@ -14645,7 +14700,7 @@ export const MODELS = {
 			provider: "vercel-ai-gateway",
 			baseUrl: "https://ai-gateway.vercel.sh",
 			reasoning: true,
-			input: ["text", "image"],
+			input: ["text"],
 			cost: {
 				input: 0.6,
 				output: 2.4,
@@ -14662,7 +14717,7 @@ export const MODELS = {
 			provider: "vercel-ai-gateway",
 			baseUrl: "https://ai-gateway.vercel.sh",
 			reasoning: true,
-			input: ["text", "image"],
+			input: ["text"],
 			cost: {
 				input: 0.3,
 				output: 1.2,
@@ -14679,7 +14734,7 @@ export const MODELS = {
 			provider: "vercel-ai-gateway",
 			baseUrl: "https://ai-gateway.vercel.sh",
 			reasoning: true,
-			input: ["text", "image"],
+			input: ["text"],
 			cost: {
 				input: 0.6,
 				output: 2.4,
