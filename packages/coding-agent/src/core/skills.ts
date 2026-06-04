@@ -341,7 +341,13 @@ export function formatSkillsForPrompt(skills: Skill[]): string {
 
 	const lines = [
 		"\n\nThe following skills provide specialized instructions for specific tasks.",
-		"Use the read tool to load a skill's file when the task matches its description.",
+		"",
+		"Skill workflow (for each new user request, before other work):",
+		"1. Decide whether a listed skill clearly applies from its description (not keyword guessing alone).",
+		"2. If a match is listed below: use the read tool on its <location> immediately and follow that SKILL.md for this turn. Do not improvise the same workflow when a skill already covers it. Users may also send `/skill:<name>` explicitly.",
+		"3. If no listed skill fits but the task clearly needs a specialized skill (image generation, browser automation, PDF tools, etc.): tell the user which skill you would use (prefer `skill:<name>`), why it fits, and that they must install it before you can follow it. Do not behave as if an uninstalled skill is loaded.",
+		"4. If several skills could apply, use the most specific one; mention close alternatives briefly.",
+		"",
 		"When a skill file references a relative path, resolve it against the skill directory (parent of SKILL.md / dirname of the path) and use that absolute path in tool commands.",
 		"",
 		"<available_skills>",
