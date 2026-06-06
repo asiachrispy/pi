@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -37,6 +37,20 @@ describe("DefaultResourceLoader", () => {
 			expect(loader.getSkills().skills).toEqual([]);
 			expect(loader.getPrompts().prompts).toEqual([]);
 			expect(loader.getThemes().themes).toEqual([]);
+		});
+
+		it("should auto-install and load memory.ts when missing from agentDir", async () => {
+			const loader = new DefaultResourceLoader({ cwd, agentDir });
+			await loader.reload();
+
+			const memoryPath = join(agentDir, "extensions", "memory.ts");
+			expect(existsSync(memoryPath)).toBe(true);
+
+			const { extensions, errors } = loader.getExtensions();
+			const memory = extensions.find((extension) => extension.path.endsWith("memory.ts"));
+			expect(memory).toBeDefined();
+			expect(errors.filter((entry) => entry.path.includes("memory.ts"))).toEqual([]);
+			expect([...memory!.commands.keys()]).toContain("memory");
 		});
 
 		it("should discover skills from agentDir", async () => {

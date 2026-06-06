@@ -3,10 +3,18 @@
  *
  */
 
+import * as nodeBuffer from "node:buffer";
+import * as nodeCrypto from "node:crypto";
 import * as fs from "node:fs";
+import * as nodeFsPromises from "node:fs/promises";
+import * as nodeModule from "node:module";
 import { createRequire } from "node:module";
+import * as nodeOs from "node:os";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
+import * as nodeProcess from "node:process";
+import * as nodeStream from "node:stream";
+import * as nodeUrl from "node:url";
+import * as nodeUtil from "node:util";
 import * as _bundledPiAgentCore from "@earendil-works/pi-agent-core";
 import * as _bundledPiAi from "@earendil-works/pi-ai";
 import * as _bundledPiAiOauth from "@earendil-works/pi-ai/oauth";
@@ -60,6 +68,32 @@ const VIRTUAL_MODULES: Record<string, unknown> = {
 	"@mariozechner/pi-coding-agent": _bundledPiCodingAgent,
 };
 
+/** Node built-ins for jiti in webpack/Next.js hosts (alias strings like "fs" are not resolvable there). */
+const NODE_BUILTIN_VIRTUAL_MODULES: Record<string, unknown> = {
+	"node:fs": fs,
+	fs,
+	"node:fs/promises": nodeFsPromises,
+	"fs/promises": nodeFsPromises,
+	"node:path": path,
+	path,
+	"node:url": nodeUrl,
+	url: nodeUrl,
+	"node:module": nodeModule,
+	module: nodeModule,
+	"node:os": nodeOs,
+	os: nodeOs,
+	"node:crypto": nodeCrypto,
+	crypto: nodeCrypto,
+	"node:stream": nodeStream,
+	stream: nodeStream,
+	"node:buffer": nodeBuffer,
+	buffer: nodeBuffer,
+	"node:util": nodeUtil,
+	util: nodeUtil,
+	"node:process": nodeProcess,
+	process: nodeProcess,
+};
+
 const require = createRequire(import.meta.url);
 
 /**
@@ -71,7 +105,7 @@ let _aliases: Record<string, string> | null = null;
 function getAliases(): Record<string, string> {
 	if (_aliases) return _aliases;
 
-	const __dirname = path.dirname(fileURLToPath(import.meta.url));
+	const __dirname = path.dirname(nodeUrl.fileURLToPath(import.meta.url));
 	const packageIndex = path.resolve(__dirname, "../..", "index.js");
 
 	const typeboxEntry = require.resolve("typebox");
@@ -84,7 +118,7 @@ function getAliases(): Record<string, string> {
 		if (fs.existsSync(workspacePath)) {
 			return workspacePath;
 		}
-		return fileURLToPath(import.meta.resolve(specifier));
+		return nodeUrl.fileURLToPath(import.meta.resolve(specifier));
 	};
 
 	const piCodingAgentEntry = packageIndex;
@@ -331,10 +365,12 @@ function createExtensionAPI(
 async function loadExtensionModule(extensionPath: string) {
 	const jiti = createJiti(import.meta.url, {
 		moduleCache: false,
-		// In Bun binary: use virtualModules for bundled packages (no filesystem resolution)
-		// Also disable tryNative so jiti handles ALL imports (not just the entry point)
-		// In Node.js/dev: use aliases to resolve to node_modules paths
-		...(isBunBinary ? { virtualModules: VIRTUAL_MODULES, tryNative: false } : { alias: getAliases() }),
+		fsCache: false,
+		cacheVersion: "pi-ext-builtin-vm-1",
+		tryNative: false,
+		...(isBunBinary
+			? { virtualModules: { ...NODE_BUILTIN_VIRTUAL_MODULES, ...VIRTUAL_MODULES } }
+			: { alias: getAliases(), virtualModules: NODE_BUILTIN_VIRTUAL_MODULES }),
 	});
 
 	const module = await jiti.import(extensionPath, { default: true });

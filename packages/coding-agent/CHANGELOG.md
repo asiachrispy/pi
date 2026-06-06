@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- Auto-install the bundled `memory.ts` extension into `$PI_CODING_AGENT_DIR/extensions/` on first load so pi CLI and embedded hosts get project memory without manual setup.
+
+### Fixed
+
+- Fixed extension loading in webpack/Next.js hosts by injecting Node built-ins through jiti `virtualModules` instead of unresolvable `fs` path aliases.
+
 ## [0.78.2] - 2026-06-06
 
 ### Added
