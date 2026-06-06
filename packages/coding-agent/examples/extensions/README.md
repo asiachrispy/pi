@@ -30,6 +30,7 @@ cp permission-gate.ts ~/.pi/agent/extensions/
 | Extension | Description |
 |-----------|-------------|
 | `todo.ts` | Todo list tool + `/todos` command with custom rendering and state persistence |
+| `memory.ts` | Project-local memory with compact index injection, retrieval tools, branch-aware session events, and `.pi/memory.jsonl` snapshots |
 | `hello.ts` | Minimal custom tool example |
 | `question.ts` | Demonstrates `ctx.ui.select()` for asking the user questions with custom UI |
 | `questionnaire.ts` | Multi-question input with tab bar navigation between questions |
@@ -133,6 +134,54 @@ cp permission-gate.ts ~/.pi/agent/extensions/
 |-----------|-------------|
 | `with-deps/` | Extension with its own package.json and dependencies (demonstrates jiti module resolution) |
 | `file-trigger.ts` | Watches a trigger file and injects contents into conversation |
+
+## Memory Extension
+
+`memory.ts` implements Pi Memory Final as a single-file extension. It stores durable project facts, decisions,
+preferences, and context in `.pi/memory.jsonl`, and also appends `customType: "memory"` events to the session JSONL so
+forked branches can keep independent memory changes.
+
+Load it directly:
+
+```bash
+pi --extension packages/coding-agent/examples/extensions/memory.ts
+```
+
+Or copy it into auto-discovery:
+
+```bash
+cp packages/coding-agent/examples/extensions/memory.ts ~/.pi/agent/extensions/
+```
+
+Tools registered for the agent:
+
+| Tool | Purpose |
+|------|---------|
+| `memory_set` | Save or overwrite a keyed memory |
+| `memory_get` | Retrieve a full memory by exact key, including forgotten memories |
+| `memory_search` | Search non-forgotten memories by keyword |
+| `memory_list` | List non-forgotten memories, optionally by category |
+| `memory_delete` | Delete a memory by exact key |
+
+Slash commands:
+
+```text
+/memory list
+/memory list fact
+/memory list --all
+/memory delete <key>
+/memory clean
+```
+
+The extension injects only a compact memory index into model context, with at most 8 active memories and a dormant
+count. Forgotten memories remain on disk and are visible through `/memory list --all`; they are only removed by
+`/memory delete` or confirmed `/memory clean`.
+
+Security boundary: `memory_set` rejects sensitive keys that look like API keys, tokens, passwords, secrets, credentials,
+private keys, or auth tokens. Memory is project-local only; there is no global user memory or cross-project migration.
+
+Pi-Web can share the same memory when it loads the same extension path and opens the same project directory. Concurrent
+CLI and Pi-Web writes to `.pi/memory.jsonl` are not locked; avoid editing the same project memory from both at once.
 
 ## Writing Extensions
 
