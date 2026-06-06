@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "dev-browser": {
+      "source": "sawyerhood/dev-browser",
+      "sourceType": "github",
+      "skillPath": "skills/dev-browser/SKILL.md",
+      "computedHash": "d50d11bbefdc1599d78900828dcb69d48e5091769d3f5ce10e06a60efe2405bf"
+    }
+  }
+}
