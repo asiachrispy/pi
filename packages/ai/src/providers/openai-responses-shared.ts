@@ -553,3 +553,45 @@ function mapStopReason(status: OpenAI.Responses.ResponseStatus | undefined): Sto
 		}
 	}
 }
+
+// =============================================================================
+// Service-tier pricing
+// =============================================================================
+
+/**
+ * Multiplier applied to cost for a given `service_tier`. Extracted so both
+ * `streamOpenAIResponses` and `streamOpenAICodexResponses` apply the same
+ * pricing rules, and so the rules can be unit-tested independently.
+ */
+export function getServiceTierCostMultiplier(
+	model: Pick<Model<Api>, "id">,
+	serviceTier: ResponseCreateParamsStreaming["service_tier"] | undefined,
+): number {
+	switch (serviceTier) {
+		case "flex":
+			return 0.5;
+		case "priority":
+			return model.id === "gpt-5.5" ? 2.5 : 2;
+		default:
+			return 1;
+	}
+}
+
+/**
+ * Multiply every cost field of a `Usage` by the service-tier multiplier.
+ * No-op when the multiplier is 1.
+ */
+export function applyServiceTierPricing(
+	usage: Usage,
+	serviceTier: ResponseCreateParamsStreaming["service_tier"] | undefined,
+	model: Pick<Model<Api>, "id">,
+): void {
+	const multiplier = getServiceTierCostMultiplier(model, serviceTier);
+	if (multiplier === 1) return;
+
+	usage.cost.input *= multiplier;
+	usage.cost.output *= multiplier;
+	usage.cost.cacheRead *= multiplier;
+	usage.cost.cacheWrite *= multiplier;
+	usage.cost.total = usage.cost.input + usage.cost.output + usage.cost.cacheRead + usage.cost.cacheWrite;
+}
