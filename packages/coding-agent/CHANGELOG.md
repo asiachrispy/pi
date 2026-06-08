@@ -5,6 +5,15 @@
 ### Added
 
 - Auto-install the bundled `memory.ts` extension into `$PI_CODING_AGENT_DIR/extensions/` on first load so pi CLI and embedded hosts get project memory without manual setup.
+- Extracted package source-string parsing into `core/package-source-parser.ts` (`parseSource`, `parseNpmSpec`, `getPackageSourceString`, `getSourceMatchKey*`, `packageSourcesMatch`, `normalizePackageSourceForSettings`, `buildNoMatchingPackageMessage`, `findSuggestedConfiguredSource`). The default package manager now delegates to a `createPackageSourceParser(cwd)` factory instance, so the rules can be unit-tested independently of the I/O-heavy install / update paths.
+
+- Extracted npm install / uninstall / batch update / version check path into `core/package-manager-npm.ts`. The default package manager now delegates to a `PackageManagerNpm` instance built from a `PackageManagerNpmDeps` interface, isolating the I/O-heavy npm work from the rest of the orchestrator.
+
+- Extracted git install / update / remove / version-check path into `core/package-manager-git.ts`. The default package manager now delegates to a `PackageManagerGit` instance built from a `PackageManagerGitDeps` interface, isolating the I/O-heavy git work (clone, fetch, reset, rev-parse, ls-remote) from the rest of the orchestrator.
+
+- Extracted steering / follow-up / next-turn message queue into `core/agent-session-queue.ts`. The default session delegates queue operations (queueSteer, queueFollowUp, clear, consumeDelivered, sendCustomMessage, throwIfExtensionCommand) to a `SessionQueue` instance built from a `SessionQueueHost` interface, isolating message-queue logic from the rest of the session.
+
+- Extracted tree-navigation text extractors into `core/agent-session-tree.ts` (`extractUserMessageText`, `extractCustomMessageText`). The default session's `_extractUserMessageText` method now delegates to the pure function, so the text-extraction rules can be unit-tested without spinning up the full session.
 
 ### Fixed
 
