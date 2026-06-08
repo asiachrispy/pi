@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added pure `isRetryableAssistantError` and `isNonRetryableProviderLimitError` helpers in `utils/retry-classification.ts`, extracted from the agent-session retry path so the classification rules can be unit-tested independently and reused by other layers.
+- Shared `getServiceTierCostMultiplier` and `applyServiceTierPricing` between `openai-responses` and `openai-codex-responses` providers via `openai-responses-shared.ts`, removing the duplicated per-provider copies.
+
 ## [0.78.2] - 2026-06-06
 
 ### Fixed
