@@ -1007,7 +1007,19 @@ export type ExtensionEvent =
 	| UserBashEvent
 	| InputEvent
 	| ToolCallEvent
-	| ToolResultEvent;
+	| ToolResultEvent
+	| TtsrTriggeredEvent;
+
+// ============================================================================
+// TTSR Events
+// ============================================================================
+
+/** Fired after a TTSR rule aborts the LLM stream and is injected as a reminder. */
+export interface TtsrTriggeredEvent {
+	type: "ttsr_triggered";
+	ruleName: string;
+	source: string;
+}
 
 // ============================================================================
 // Event Results

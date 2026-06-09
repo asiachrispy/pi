@@ -87,6 +87,8 @@ import type { ModelRegistry } from "./model-registry.ts";
 import { expandPromptTemplate, type PromptTemplate } from "./prompt-templates.ts";
 import type { ResourceExtensionPaths, ResourceLoader } from "./resource-loader.ts";
 import { isRuleUrl, resolveRuleUrl } from "./rules/rule-url.ts";
+import { compileTtsrRules } from "./rules/ttsr.ts";
+import { parseTtsrAbortFromMessage } from "./rules/ttsr-stream.ts";
 import type { BranchSummaryEntry, CompactionEntry, SessionManager } from "./session-manager.ts";
 import { CURRENT_SESSION_VERSION, getLatestCompactionEntry, type SessionHeader } from "./session-manager.ts";
 import type { SettingsManager } from "./settings-manager.ts";
@@ -149,7 +151,8 @@ export type AgentSessionEvent =
 			errorMessage?: string;
 	  }
 	| { type: "auto_retry_start"; attempt: number; maxAttempts: number; delayMs: number; errorMessage: string }
-	| { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string };
+	| { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string }
+	| { type: "ttsr_triggered"; ruleName: string; source: string };
 
 /** Listener function for agent session events */
 export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
@@ -977,6 +980,13 @@ export class AgentSession {
 			this._retryAttempt = 0;
 		}
 
+		// TTSR: if the most recent assistant message is a TTSR abort error,
+		// strip it from agent state, inject the rule body as a custom user
+		// message, and continue the run.
+		if (await this._handleTtsrAbort(msg)) {
+			return true;
+		}
+
 		if (await this._checkCompaction(msg)) {
 			return true;
 		}
@@ -984,6 +994,98 @@ export class AgentSession {
 		// The agent loop drains both queues before emitting agent_end. Any messages
 		// here were queued by agent_end extension handlers and need a continuation.
 		return this.agent.hasQueuedMessages();
+	}
+
+	/**
+	 * Handle a TTSR abort: when the LLM stream was cut short by a TTSR rule
+	 * match, the harness sees the resulting error assistant message. We
+	 * remove the error message from agent state, append a custom user
+	 * message containing the rule body, and signal a continuation.
+	 *
+	 * Returns true when an injection was performed (so the caller can keep
+	 * the agent running).
+	 */
+	private async _handleTtsrAbort(msg: AssistantMessage): Promise<boolean> {
+		if (msg.stopReason !== "error") return false;
+		const parsed = parseTtsrAbortFromMessage(msg.errorMessage);
+		if (!parsed) return false;
+
+		// Re-compile rules on demand so we use the latest settings and rule
+		// files (no separate cache to keep in sync).
+		const ttsrSettings = this.settingsManager.getTtsrSettings();
+		const { compiled } = compileTtsrRules(this.resourceLoader.getRules().rules, ttsrSettings);
+		const rule = compiled.find((r) => r.name === parsed.ruleName);
+		if (!rule) {
+			// No rule body available (settings changed mid-session). Drop the
+			// failed message and continue without injection.
+			this._removeLastAssistantErrorMessage();
+			return false;
+		}
+
+		// 1. Drop the failed assistant message from agent state. We do this
+		// by mutating it in place to a synthetic "aborted" message so the
+		// session log still records that the LLM run ended.
+		this._markAssistantMessageAsAborted(msg);
+
+		// 2. Append a custom user message with the rule body.
+		const injection: CustomMessage = {
+			role: "custom",
+			customType: "ttsr_injection",
+			content: `[TTSR rule "${rule.name}" triggered]\n\n${rule.body}`,
+			display: true,
+			details: { ruleName: rule.name, source: rule.source },
+			timestamp: Date.now(),
+		};
+		this.agent.state.messages.push(injection);
+
+		// 3. Persist the injection as a custom session entry.
+		this.sessionManager.appendCustomMessageEntry(
+			injection.customType,
+			injection.content,
+			injection.display,
+			injection.details,
+		);
+
+		// 4. Notify extensions about the injection.
+		await this._extensionRunner.emit({
+			type: "ttsr_triggered",
+			ruleName: rule.name,
+			source: rule.source,
+		});
+
+		// 5. Continue the run so the LLM sees the injection on the next call.
+		return true;
+	}
+
+	/** Mutate an assistant message in place to a synthetic "aborted" marker. */
+	private _markAssistantMessageAsAborted(msg: AssistantMessage): void {
+		const record = msg as unknown as Record<string, unknown>;
+		record.content = [{ type: "text", text: "" }];
+		record.stopReason = "aborted";
+		record.errorMessage = undefined;
+		// Append a note into the content for the session log.
+		record.content = [
+			{ type: "text", text: "" },
+			{
+				type: "text" as const,
+				text: `[ttsr_aborted:${(msg as AssistantMessage & { errorMessage?: string }).errorMessage ?? "unknown"}]`,
+			},
+		];
+	}
+
+	/**
+	 * Remove the last assistant message in agent state. Used as a fallback
+	 * when a TTSR abort fires but the rule body is no longer available.
+	 */
+	private _removeLastAssistantErrorMessage(): void {
+		const messages = this.agent.state.messages;
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const m = messages[i];
+			if (m.role === "assistant") {
+				messages.splice(i, 1);
+				return;
+			}
+		}
 	}
 
 	/**

@@ -46,6 +46,21 @@ export type ApprovalMode = "yolo" | "write" | "always-ask";
 
 export type PerToolApproval = "allow" | "deny" | "prompt";
 
+export type RuleInterruptMode = "never" | "prose-only" | "tool-only" | "always";
+
+export interface TtsrSettingsRule {
+	name?: string;
+	pattern: string;
+	body: string;
+	interruptMode?: RuleInterruptMode;
+	globs?: string[];
+}
+
+export interface TtsrSettings {
+	enabled?: boolean;
+	rules?: TtsrSettingsRule[];
+}
+
 /**
  * Tool-level approval settings.
  *
@@ -59,6 +74,8 @@ export type PerToolApproval = "allow" | "deny" | "prompt";
 export interface ToolsSettings {
 	approvalMode?: ApprovalMode;
 	approval?: Record<string, PerToolApproval>;
+	/** Time-traveling stream rules: regex triggers that abort the LLM stream. */
+	ttsr?: TtsrSettings;
 }
 
 export interface ThinkingBudgetsSettings {
@@ -1098,6 +1115,10 @@ export class SettingsManager {
 			mode: this.settings.tools?.approvalMode ?? "yolo",
 			perTool: this.settings.tools?.approval ?? {},
 		};
+	}
+
+	getTtsrSettings(): TtsrSettings {
+		return this.settings.tools?.ttsr ?? {};
 	}
 
 	/**
