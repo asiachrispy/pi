@@ -104,6 +104,7 @@ import {
 	resolveConflictInFile,
 } from "./tools/conflict-url.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
+import { createRenderMermaidToolDefinition } from "./tools/render-mermaid.ts";
 import { createToolDefinitionFromAgentTool, wrapToolDefinition } from "./tools/tool-definition-wrapper.ts";
 import { buildToolIndex, createBm25ToolDefinition, type ToolIndexEntry } from "./tools/tool-discovery.ts";
 
@@ -2553,6 +2554,13 @@ export class AgentSession {
 			);
 			const bm25Tool = wrapToolDefinition(bm25ToolDef, () => runner.createContext());
 			this._toolRegistry.set("search_tool_bm25", bm25Tool);
+		}
+
+		// Register the render_mermaid tool when enabled.
+		if (this.settingsManager.getRenderMermaidEnabled()) {
+			const mermaidToolDef = createRenderMermaidToolDefinition();
+			const mermaidTool = wrapToolDefinition(mermaidToolDef, () => runner.createContext());
+			this._toolRegistry.set("render_mermaid", mermaidTool);
 		}
 
 		const nextActiveToolNames = (

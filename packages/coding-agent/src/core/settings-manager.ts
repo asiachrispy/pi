@@ -93,6 +93,10 @@ export interface ToolsSettings {
 	discoveryMode?: "off" | "bm25";
 }
 
+export interface RenderMermaidSettings {
+	enabled?: boolean;
+}
+
 export interface ThinkingBudgetsSettings {
 	minimal?: number;
 	low?: number;
@@ -165,6 +169,7 @@ export interface Settings {
 	httpIdleTimeoutMs?: number; // HTTP header/body idle timeout in milliseconds; 0 disables it
 	websocketConnectTimeoutMs?: number; // WebSocket connect/open handshake timeout in milliseconds; 0 disables it
 	tools?: ToolsSettings;
+	renderMermaid?: RenderMermaidSettings;
 }
 
 /** Deep merge settings: project/overrides take precedence, nested objects merge recursively */
@@ -1145,6 +1150,10 @@ export class SettingsManager {
 	getToolDiscoveryMode(): "off" | "bm25" {
 		const mode = this.settings.tools?.discoveryMode;
 		return mode === "bm25" ? "bm25" : "off";
+	}
+
+	getRenderMermaidEnabled(): boolean {
+		return this.settings.renderMermaid?.enabled ?? false;
 	}
 
 	/**
