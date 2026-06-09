@@ -2305,7 +2305,8 @@ export class AgentSession {
 				.filter((entry): entry is readonly [string, string[]] => entry !== undefined),
 		);
 		const runner = this._extensionRunner;
-		const wrappedExtensionTools = wrapRegisteredTools(allCustomTools, runner);
+		const getApprovalSettings = () => this.settingsManager.getApprovalSettings();
+		const wrappedExtensionTools = wrapRegisteredTools(allCustomTools, runner, getApprovalSettings);
 		const wrappedBuiltInTools = wrapRegisteredTools(
 			Array.from(this._baseToolDefinitions.values())
 				.filter((definition) => isAllowedTool(definition.name))
@@ -2314,6 +2315,7 @@ export class AgentSession {
 					sourceInfo: createSyntheticSourceInfo(`<builtin:${definition.name}>`, { source: "builtin" }),
 				})),
 			runner,
+			getApprovalSettings,
 		);
 
 		const toolRegistry = new Map(wrappedBuiltInTools.map((tool) => [tool.name, tool]));

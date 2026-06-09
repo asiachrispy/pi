@@ -672,6 +672,9 @@ export async function main(args: string[], options?: MainOptions) {
 				? projectTrustedForSession
 				: (parsed.projectTrustOverride ?? (!hasProjectTrustInputs(cwd) || trustStore.get(cwd) === true));
 		const runtimeSettingsManager = SettingsManager.create(cwd, agentDir, { projectTrusted });
+		if (parsed.yolo) {
+			runtimeSettingsManager.setSessionApprovalMode("yolo");
+		}
 		const services = await createAgentSessionServices({
 			cwd,
 			agentDir,

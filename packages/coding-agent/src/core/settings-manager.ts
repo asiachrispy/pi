@@ -42,6 +42,25 @@ export interface ImageSettings {
 	blockImages?: boolean; // default: false - when true, prevents all images from being sent to LLM providers
 }
 
+export type ApprovalMode = "yolo" | "write" | "always-ask";
+
+export type PerToolApproval = "allow" | "deny" | "prompt";
+
+/**
+ * Tool-level approval settings.
+ *
+ * - `approvalMode` is the global default policy (default: "yolo" — auto-approve).
+ * - `approval` provides per-tool overrides that win over the global mode.
+ *
+ * Built-in tools declare a default tier via `ToolDefinition.approval`; unknown
+ * or MCP tools default to `exec`. `override: true` on a tool's decision forces
+ * a prompt in non-yolo modes even when the user policy says allow.
+ */
+export interface ToolsSettings {
+	approvalMode?: ApprovalMode;
+	approval?: Record<string, PerToolApproval>;
+}
+
 export interface ThinkingBudgetsSettings {
 	minimal?: number;
 	low?: number;
@@ -113,6 +132,7 @@ export interface Settings {
 	sessionDir?: string; // Custom session storage directory (same format as --session-dir CLI flag)
 	httpIdleTimeoutMs?: number; // HTTP header/body idle timeout in milliseconds; 0 disables it
 	websocketConnectTimeoutMs?: number; // WebSocket connect/open handshake timeout in milliseconds; 0 disables it
+	tools?: ToolsSettings;
 }
 
 /** Deep merge settings: project/overrides take precedence, nested objects merge recursively */
@@ -1071,6 +1091,29 @@ export class SettingsManager {
 		this.globalSettings.images.blockImages = blocked;
 		this.markModified("images", "blockImages");
 		this.save();
+	}
+
+	getApprovalSettings(): { mode: ApprovalMode; perTool: Record<string, PerToolApproval> } {
+		return {
+			mode: this.settings.tools?.approvalMode ?? "yolo",
+			perTool: this.settings.tools?.approval ?? {},
+		};
+	}
+
+	/**
+	 * Apply a session-scoped approval mode override (e.g. from `--yolo`).
+	 *
+	 * Unlike the public setters, this does not persist the change to disk —
+	 * it is meant for CLI flags that should only affect the current session.
+	 * The merged `settings` view is refreshed so `getApprovalSettings()`
+	 * returns the new value immediately.
+	 */
+	setSessionApprovalMode(mode: ApprovalMode): void {
+		if (!this.globalSettings.tools) {
+			this.globalSettings.tools = {};
+		}
+		this.globalSettings.tools.approvalMode = mode;
+		this.settings = deepMergeSettings(this.globalSettings, this.projectSettings);
 	}
 
 	getEnabledModels(): string[] | undefined {

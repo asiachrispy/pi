@@ -477,7 +477,36 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 		theme: Theme,
 		context: ToolRenderContext<TState, Static<TParams>>,
 	) => Component;
+
+	/**
+	 * Optional approval policy for this tool. Combined with the session-level
+	 * `tools.approvalMode` and `tools.approval.<name>` override to decide
+	 * whether a call is allowed, denied, or prompts the user.
+	 *
+	 * A function receives the parsed args and may return a different decision
+	 * per call. The object form lets tools force a prompt via `override: true`
+	 * for dangerous inputs (e.g. `rm -rf /`) even when the user runs in `yolo`.
+	 *
+	 * Tools without an `approval` declaration default to `exec` tier.
+	 */
+	approval?: ToolApproval;
+
+	/** Optional prompt detail lines shown in the approval dialog body. */
+	formatApprovalDetails?: (args: unknown) => string | string[] | undefined;
 }
+
+// ============================================================================
+// Tool Approval
+// ============================================================================
+
+/** Risk tier a tool declares. Used together with the session's approval mode. */
+export type ToolTier = "read" | "write" | "exec";
+
+/** Decision returned by a tool's `approval` declaration. */
+export type ToolApprovalDecision = ToolTier | { tier: ToolTier; reason?: string; override?: boolean };
+
+/** Per-tool approval policy. */
+export type ToolApproval = ToolApprovalDecision | ((args: unknown) => ToolApprovalDecision);
 
 type AnyToolDefinition = ToolDefinition<any, any, any>;
 

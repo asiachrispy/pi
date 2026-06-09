@@ -16,6 +16,7 @@ import {
 	untrackDetachedChildPid,
 } from "../../utils/shell.ts";
 import type { ToolDefinition, ToolRenderResultOptions } from "../extensions/types.ts";
+import { findCriticalBashPattern } from "./bash-critical.ts";
 import { OutputAccumulator } from "./output-accumulator.ts";
 import { getTextOutput, invalidArgText, str } from "./render-utils.ts";
 import { wrapToolDefinition } from "./tool-definition-wrapper.ts";
@@ -279,6 +280,26 @@ export function createBashToolDefinition(
 		description: `Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last ${DEFAULT_MAX_LINES} lines or ${DEFAULT_MAX_BYTES / 1024}KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.`,
 		promptSnippet: "Execute bash commands (ls, grep, find, etc.)",
 		parameters: bashSchema,
+		// Bash executes arbitrary code, so its default tier is `exec`. A small
+		// set of dangerous patterns escalates to `override: true` so the user
+		// gets a prompt even in `yolo` mode (paired with a `prompt` policy).
+		approval: (args: unknown) => {
+			const command =
+				typeof args === "object" && args !== null && "command" in args
+					? String((args as { command?: unknown }).command ?? "")
+					: "";
+			const hit = findCriticalBashPattern(command);
+			if (hit) {
+				return { tier: "exec", reason: hit.reason, override: true };
+			}
+			return "exec";
+		},
+		formatApprovalDetails: (args: unknown) => {
+			if (typeof args !== "object" || args === null) return undefined;
+			const command = (args as { command?: unknown }).command;
+			if (typeof command !== "string") return undefined;
+			return ["Command:", command];
+		},
 		async execute(
 			_toolCallId,
 			{ command, timeout }: { command: string; timeout?: number },
