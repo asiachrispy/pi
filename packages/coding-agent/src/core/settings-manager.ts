@@ -89,6 +89,8 @@ export interface ToolsSettings {
 	approval?: Record<string, PerToolApproval>;
 	/** Time-traveling stream rules: regex triggers that abort the LLM stream. */
 	ttsr?: TtsrSettings;
+	/** Tool discovery: "off" (default) or "bm25" (hidden tools are searchable). */
+	discoveryMode?: "off" | "bm25";
 }
 
 export interface ThinkingBudgetsSettings {
@@ -1138,6 +1140,11 @@ export class SettingsManager {
 
 	getTtsrSettings(): TtsrSettings {
 		return this.settings.tools?.ttsr ?? {};
+	}
+
+	getToolDiscoveryMode(): "off" | "bm25" {
+		const mode = this.settings.tools?.discoveryMode;
+		return mode === "bm25" ? "bm25" : "off";
 	}
 
 	/**

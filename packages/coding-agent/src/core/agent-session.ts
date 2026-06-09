@@ -104,7 +104,8 @@ import {
 	resolveConflictInFile,
 } from "./tools/conflict-url.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
-import { createToolDefinitionFromAgentTool } from "./tools/tool-definition-wrapper.ts";
+import { createToolDefinitionFromAgentTool, wrapToolDefinition } from "./tools/tool-definition-wrapper.ts";
+import { buildToolIndex, createBm25ToolDefinition, type ToolIndexEntry } from "./tools/tool-discovery.ts";
 
 // ============================================================================
 // Skill Block Parsing
@@ -2531,6 +2532,28 @@ export class AgentSession {
 			toolRegistry.set(tool.name, tool);
 		}
 		this._toolRegistry = toolRegistry;
+
+		// Register the BM25 hidden-tool discovery tool when discoveryMode is set.
+		const discoveryMode = this.settingsManager.getToolDiscoveryMode();
+		if (discoveryMode === "bm25") {
+			const bm25ToolDef = createBm25ToolDefinition(
+				() => {
+					const all: ToolIndexEntry[] = [];
+					for (const [name, tool] of this._toolRegistry) {
+						if (name === "search_tool_bm25") continue;
+						all.push({ name, description: tool.description, label: tool.label });
+					}
+					return buildToolIndex(new Set(this.getActiveToolNames()), all);
+				},
+				(name) => {
+					if (!this.getActiveToolNames().includes(name)) {
+						this.setActiveToolsByName([...this.getActiveToolNames(), name]);
+					}
+				},
+			);
+			const bm25Tool = wrapToolDefinition(bm25ToolDef, () => runner.createContext());
+			this._toolRegistry.set("search_tool_bm25", bm25Tool);
+		}
 
 		const nextActiveToolNames = (
 			options?.activeToolNames ? [...options.activeToolNames] : [...previousActiveToolNames]
