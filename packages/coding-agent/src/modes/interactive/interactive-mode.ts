@@ -79,6 +79,7 @@ import { defaultModelPerProvider, findExactModelReferenceMatch, resolveModelScop
 import { DefaultPackageManager } from "../../core/package-manager.ts";
 import { BUILT_IN_PROVIDER_DISPLAY_NAMES } from "../../core/provider-display-names.ts";
 import type { ResourceDiagnostic } from "../../core/resource-loader.ts";
+import { resolveRuleUrl } from "../../core/rules/rule-url.ts";
 import { formatMissingSessionCwdPrompt, MissingSessionCwdError } from "../../core/session-cwd.ts";
 import { type SessionContext, SessionManager } from "../../core/session-manager.ts";
 import { BUILTIN_SLASH_COMMANDS } from "../../core/slash-commands.ts";
@@ -2548,6 +2549,11 @@ export class InteractiveMode {
 			}
 			if (text === "/hotkeys") {
 				this.handleHotkeysCommand();
+				this.editor.setText("");
+				return;
+			}
+			if (text.startsWith("/rules")) {
+				this.handleRulesCommand(text);
 				this.editor.setText("");
 				return;
 			}
@@ -5465,6 +5471,40 @@ export class InteractiveMode {
 		this.chatContainer.addChild(new Text(theme.bold(theme.fg("accent", "Keyboard Shortcuts")), 1, 0));
 		this.chatContainer.addChild(new Spacer(1));
 		this.chatContainer.addChild(new Markdown(hotkeys.trim(), 1, 1, this.getMarkdownThemeWithSettings()));
+		this.chatContainer.addChild(new DynamicBorder());
+		this.ui.requestRender();
+	}
+
+	private handleRulesCommand(text: string): void {
+		const parts = text.trim().split(/\s+/);
+		const subcommand = parts[1];
+
+		const loader = this.session.resourceLoader;
+		const { rules, diagnostics } = loader.getRules();
+
+		let body: string;
+		try {
+			if (subcommand === undefined) {
+				body = resolveRuleUrl("rule://root", rules);
+			} else if (subcommand === "list") {
+				body = resolveRuleUrl("rule://root", rules);
+			} else {
+				const name = subcommand;
+				body = resolveRuleUrl(`rule://${name}`, rules);
+			}
+		} catch (error) {
+			body = error instanceof Error ? error.message : String(error);
+		}
+
+		const diagnosticsText = diagnostics.length
+			? `\n\nDiagnostics:\n${diagnostics.map((d) => `- [${d.type}] ${d.message}${d.path ? ` (${d.path})` : ""}`).join("\n")}`
+			: "";
+
+		this.chatContainer.addChild(new Spacer(1));
+		this.chatContainer.addChild(new DynamicBorder());
+		this.chatContainer.addChild(new Text(theme.bold(theme.fg("accent", "Rules")), 1, 0));
+		this.chatContainer.addChild(new Spacer(1));
+		this.chatContainer.addChild(new Markdown(`${body}${diagnosticsText}`, 1, 1, this.getMarkdownThemeWithSettings()));
 		this.chatContainer.addChild(new DynamicBorder());
 		this.ui.requestRender();
 	}

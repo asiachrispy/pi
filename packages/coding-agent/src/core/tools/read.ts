@@ -27,6 +27,10 @@ export type ReadToolInput = Static<typeof readSchema>;
 
 export interface ReadToolDetails {
 	truncation?: TruncationResult;
+	/** Source path (or internal URL) that produced this content. */
+	path?: string;
+	/** Detected MIME type for image reads. */
+	mimeType?: string;
 }
 
 interface CompactReadClassification {
@@ -47,6 +51,14 @@ export interface ReadOperations {
 	access: (absolutePath: string) => Promise<void>;
 	/** Detect image MIME type, return null or undefined for non-images */
 	detectImageMimeType?: (absolutePath: string) => Promise<string | null | undefined>;
+	/**
+	 * Resolve an internal `://` URL (e.g. `rule://root`) to text. The read
+	 * tool calls this before any filesystem I/O; if it returns a string,
+	 * that string is returned directly. If it throws, the error is
+	 * surfaced to the model. If it is undefined, the read tool falls back
+	 * to the filesystem path.
+	 */
+	resolveInternalUrl?: (url: string) => Promise<string | undefined> | string | undefined;
 }
 
 const defaultReadOperations: ReadOperations = {
@@ -60,6 +72,8 @@ export interface ReadToolOptions {
 	autoResizeImages?: boolean;
 	/** Custom operations for file reading. Default: local filesystem */
 	operations?: ReadOperations;
+	/** Resolve an internal `://` URL (e.g. `rule://<name>`) to text. */
+	resolveInternalUrl?: (url: string) => Promise<string | undefined> | string | undefined;
 }
 
 type ReadRenderArgs = { path?: string; file_path?: string; offset?: number; limit?: number };
@@ -205,7 +219,10 @@ export function createReadToolDefinition(
 	options?: ReadToolOptions,
 ): ToolDefinition<typeof readSchema, ReadToolDetails | undefined> {
 	const autoResizeImages = options?.autoResizeImages ?? true;
-	const ops = options?.operations ?? defaultReadOperations;
+	const ops: ReadOperations = {
+		...(options?.operations ?? defaultReadOperations),
+		...(options?.resolveInternalUrl ? { resolveInternalUrl: options.resolveInternalUrl } : {}),
+	};
 	return {
 		name: "read",
 		label: "read",
@@ -235,6 +252,17 @@ export function createReadToolDefinition(
 
 					(async () => {
 						try {
+							if (ops.resolveInternalUrl) {
+								const internal = await ops.resolveInternalUrl(path);
+								if (internal !== undefined) {
+									if (aborted) return;
+									resolve({
+										content: [{ type: "text", text: internal }],
+										details: { path: path, mimeType: "text/plain" },
+									});
+									return;
+								}
+							}
 							const absolutePath = await resolveReadPathAsync(path, cwd);
 							if (aborted) return;
 							// Check if file exists and is readable.

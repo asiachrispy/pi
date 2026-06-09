@@ -15,6 +15,8 @@ import type { Extension, ExtensionFactory, ExtensionRuntime, LoadExtensionsResul
 import { DefaultPackageManager, type PathMetadata } from "./package-manager.ts";
 import type { PromptTemplate } from "./prompt-templates.ts";
 import { loadPromptTemplates } from "./prompt-templates.ts";
+import { loadRules } from "./rules/load.ts";
+import type { Rule } from "./rules/types.ts";
 import { SettingsManager } from "./settings-manager.ts";
 import type { Skill } from "./skills.ts";
 import { loadSkills } from "./skills.ts";
@@ -32,6 +34,7 @@ export interface ResourceLoader {
 	getPrompts(): { prompts: PromptTemplate[]; diagnostics: ResourceDiagnostic[] };
 	getThemes(): { themes: Theme[]; diagnostics: ResourceDiagnostic[] };
 	getAgentsFiles(): { agentsFiles: Array<{ path: string; content: string }> };
+	getRules(): { rules: import("./rules/types.ts").Rule[]; diagnostics: ResourceDiagnostic[] };
 	getSystemPrompt(): string | undefined;
 	getAppendSystemPrompt(): string[];
 	extendResources(paths: ResourceExtensionPaths): void;
@@ -200,6 +203,8 @@ export class DefaultResourceLoader implements ResourceLoader {
 	private themes: Theme[];
 	private themeDiagnostics: ResourceDiagnostic[];
 	private agentsFiles: Array<{ path: string; content: string }>;
+	private rules: import("./rules/types.ts").Rule[];
+	private ruleDiagnostics: ResourceDiagnostic[];
 	private systemPrompt?: string;
 	private appendSystemPrompt: string[];
 	private lastSkillPaths: string[];
@@ -248,6 +253,8 @@ export class DefaultResourceLoader implements ResourceLoader {
 		this.themes = [];
 		this.themeDiagnostics = [];
 		this.agentsFiles = [];
+		this.rules = [];
+		this.ruleDiagnostics = [];
 		this.appendSystemPrompt = [];
 		this.lastSkillPaths = [];
 		this.extensionSkillSourceInfos = new Map();
@@ -275,6 +282,10 @@ export class DefaultResourceLoader implements ResourceLoader {
 
 	getAgentsFiles(): { agentsFiles: Array<{ path: string; content: string }> } {
 		return { agentsFiles: this.agentsFiles };
+	}
+
+	getRules(): { rules: import("./rules/types.ts").Rule[]; diagnostics: ResourceDiagnostic[] } {
+		return { rules: this.rules, diagnostics: this.ruleDiagnostics };
 	}
 
 	getSystemPrompt(): string | undefined {
@@ -487,6 +498,16 @@ export class DefaultResourceLoader implements ResourceLoader {
 		};
 		const resolvedAgentsFiles = this.agentsFilesOverride ? this.agentsFilesOverride(agentsFiles) : agentsFiles;
 		this.agentsFiles = resolvedAgentsFiles.agentsFiles;
+
+		const rulesResult = this.noContextFiles
+			? { rules: [] as Rule[], diagnostics: [] as ResourceDiagnostic[] }
+			: loadRules({
+					cwd: this.cwd,
+					agentDir: this.agentDir,
+					projectTrusted: this.settingsManager.isProjectTrusted(),
+				});
+		this.rules = rulesResult.rules;
+		this.ruleDiagnostics = rulesResult.diagnostics;
 
 		const baseSystemPrompt = resolvePromptInput(
 			this.systemPromptSource ?? this.discoverSystemPromptFile(),

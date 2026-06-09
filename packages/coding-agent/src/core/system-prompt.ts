@@ -22,6 +22,15 @@ export interface BuildSystemPromptOptions {
 	contextFiles?: Array<{ path: string; content: string }>;
 	/** Pre-loaded skills. */
 	skills?: Skill[];
+	/** Pre-loaded rules. Rendered as a `<rulebook>` block. */
+	rules?: Array<{
+		name: string;
+		path: string;
+		content: string;
+		description?: string;
+		alwaysApply?: boolean;
+		_source: { label: string; path: string; level: "project" | "global" };
+	}>;
 }
 
 /** Build the system prompt with tools, guidelines, and context */
@@ -35,6 +44,7 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
 		cwd,
 		contextFiles: providedContextFiles,
 		skills: providedSkills,
+		rules: providedRules,
 	} = options;
 	const resolvedCwd = cwd;
 	const promptCwd = resolvedCwd.replace(/\\/g, "/");
@@ -65,6 +75,13 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
 				prompt += `<project_instructions path="${filePath}">\n${content}\n</project_instructions>\n\n`;
 			}
 			prompt += "</project_context>\n";
+		}
+
+		// Append rulebook (always-apply rules). Each rule is one named block;
+		// the model can refer to it by name or via the `rule://<name>` URL.
+		if (providedRules && providedRules.length > 0) {
+			const rulebook = formatRulebookForPrompt(providedRules);
+			if (rulebook) prompt += rulebook;
 		}
 
 		// Append skills section (only if read tool is available)
@@ -160,6 +177,13 @@ Pi documentation (read only when the user asks about pi itself, its SDK, extensi
 		prompt += "</project_context>\n";
 	}
 
+	// Append rulebook (always-apply rules). Each rule is one named block;
+	// the model can refer to it by name or via the `rule://<name>` URL.
+	if (providedRules && providedRules.length > 0) {
+		const rulebook = formatRulebookForPrompt(providedRules);
+		if (rulebook) prompt += rulebook;
+	}
+
 	// Append skills section (only if read tool is available)
 	if (hasRead && skills.length > 0) {
 		prompt += formatSkillsForPrompt(skills);
@@ -170,4 +194,38 @@ Pi documentation (read only when the user asks about pi itself, its SDK, extensi
 	prompt += `\nCurrent working directory: ${promptCwd}`;
 
 	return prompt;
+}
+
+/** Escape a string for safe inclusion in an XML attribute. */
+function escapeXmlAttribute(value: string): string {
+	return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+interface RuleLike {
+	name: string;
+	path: string;
+	content: string;
+	description?: string;
+	alwaysApply?: boolean;
+	_source: { label: string; path: string; level: "project" | "global" };
+}
+
+/** Render rules as a `<rulebook>` block. Skips rules that are not `alwaysApply`. */
+export function formatRulebookForPrompt(rules: RuleLike[]): string {
+	const applicable = rules.filter((r) => r.alwaysApply !== false);
+	if (applicable.length === 0) return "";
+
+	let out = "\n\n<rulebook>\n\n";
+	out +=
+		"Project rules loaded from disk. Each rule has a name and source path; you can read any rule in full via the read tool using the URL `rule://<name>`.\n\n";
+	for (const rule of applicable) {
+		const attrs: string[] = [
+			`name="${escapeXmlAttribute(rule.name)}"`,
+			`source="${escapeXmlAttribute(rule._source.label)}"`,
+		];
+		if (rule.description) attrs.push(`description="${escapeXmlAttribute(rule.description)}"`);
+		out += `<rule ${attrs.join(" ")}>\n${rule.content}\n</rule>\n\n`;
+	}
+	out += "</rulebook>\n";
+	return out;
 }
