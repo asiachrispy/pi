@@ -34,6 +34,8 @@ export interface Args {
 	noBuiltinTools?: boolean;
 	/** Force `tools.approvalMode: "yolo"` for this session. */
 	yolo?: boolean;
+	/** Shell completions: write the script for this shell to stdout. */
+	completions?: "bash" | "zsh" | "fish";
 	extensions?: string[];
 	noExtensions?: boolean;
 	print?: boolean;
@@ -121,6 +123,11 @@ export function parseArgs(args: string[]): Args {
 			result.noBuiltinTools = true;
 		} else if (arg === "--yolo" || arg === "--auto-approve") {
 			result.yolo = true;
+		} else if (arg === "completions" && i + 1 < args.length) {
+			const shell = args[++i];
+			if (shell === "bash" || shell === "zsh" || shell === "fish") {
+				result.completions = shell;
+			}
 		} else if ((arg === "--tools" || arg === "-t") && i + 1 < args.length) {
 			result.tools = args[++i]
 				.split(",")
