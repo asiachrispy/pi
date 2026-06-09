@@ -42,6 +42,7 @@ import { SessionQueue } from "./agent-session-queue.ts";
 import { extractUserMessageText } from "./agent-session-tree.ts";
 import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.ts";
 import { type BashResult, executeBashWithOperations } from "./bash-executor.ts";
+import { buildHandoffUserMessage, generateHandoff } from "./compaction/handoff.ts";
 import {
 	type CompactionResult,
 	calculateContextTokens,
@@ -1918,7 +1919,10 @@ export class AgentSession {
 			if (messages.length > 0 && messages[messages.length - 1].role === "assistant") {
 				this.agent.state.messages = messages.slice(0, -1);
 			}
-			return await this._runAutoCompaction("overflow", true);
+			const settings = this.settingsManager.getCompactionSettings();
+			return settings.strategy === "handoff"
+				? await this._runAutoHandoff("overflow")
+				: await this._runAutoCompaction("overflow", true);
 		}
 
 		// Case 2: Threshold - context is getting large
@@ -1945,7 +1949,12 @@ export class AgentSession {
 			contextTokens = calculateContextTokens(assistantMessage.usage);
 		}
 		if (shouldCompact(contextTokens, contextWindow, settings)) {
-			return await this._runAutoCompaction("threshold", false);
+			// handoff strategy is gated separately so the LLM still gets a
+			// chance to summarize via _runAutoCompaction; the actual handoff
+			// path replaces the agent message history in one shot.
+			return settings.strategy === "handoff"
+				? await this._runAutoHandoff("threshold")
+				: await this._runAutoCompaction("threshold", false);
 		}
 		return false;
 	}
@@ -2126,6 +2135,94 @@ export class AgentSession {
 						: `Auto-compaction failed: ${errorMessage}`,
 			});
 			return false;
+		} finally {
+			this._autoCompactionAbortController = undefined;
+		}
+	}
+
+	/**
+	 * Run a handoff compaction: generate a handoff document, then replace
+	 * the agent's message history with a single user message containing
+	 * the document. The handoff document is also persisted as a
+	 * `custom_message` session entry with `customType: "handoff"` so it
+	 * shows up in the session log and restores correctly on resume.
+	 */
+	private async _runAutoHandoff(reason: "overflow" | "threshold"): Promise<boolean> {
+		this._emit({ type: "compaction_start", reason });
+		this._autoCompactionAbortController = new AbortController();
+		const signal = this._autoCompactionAbortController.signal;
+
+		try {
+			if (!this.model) {
+				this._emit({ type: "compaction_end", reason, result: undefined, aborted: false, willRetry: false });
+				return false;
+			}
+
+			let apiKey: string | undefined;
+			let headers: Record<string, string> | undefined;
+			if (this.agent.streamFn === streamSimple) {
+				const authResult = await this._modelRegistry.getApiKeyAndHeaders(this.model);
+				if (!authResult.ok || !authResult.apiKey) {
+					this._emit({ type: "compaction_end", reason, result: undefined, aborted: false, willRetry: false });
+					return false;
+				}
+				apiKey = authResult.apiKey;
+				headers = authResult.headers;
+			} else {
+				({ apiKey, headers } = await this._getCompactionRequestAuth(this.model));
+			}
+
+			const messages = this.agent.state.messages.slice();
+			const toolsDescription = this.agent.state.tools
+				.map((t) => t.name)
+				.sort()
+				.join(", ");
+			const systemPrompt = this.agent.state.systemPrompt;
+
+			let handoffDocument: string;
+			try {
+				handoffDocument = await generateHandoff(messages, {
+					model: this.model,
+					apiKey: apiKey ?? "",
+					headers: headers ?? {},
+					signal,
+					thinkingLevel: this.thinkingLevel,
+					streamFn: this.agent.streamFn,
+					systemPrompt,
+					toolsDescription,
+				});
+			} catch (error) {
+				this._emit({
+					type: "compaction_end",
+					reason,
+					result: undefined,
+					aborted: false,
+					willRetry: false,
+					errorMessage: error instanceof Error ? error.message : String(error),
+				});
+				return false;
+			}
+
+			// Persist the handoff document as a custom message.
+			const handoffMessage = buildHandoffUserMessage(handoffDocument);
+			this.sessionManager.appendCustomMessageEntry(
+				"handoff",
+				`# Handoff from prior agent\n\n${handoffDocument}`,
+				true,
+				{ strategy: "handoff", reason },
+			);
+
+			// Replace agent state messages with the handoff user message.
+			this.agent.state.messages = [handoffMessage];
+
+			this._emit({
+				type: "compaction_end",
+				reason,
+				result: { summary: handoffDocument, firstKeptEntryId: "handoff", tokensBefore: 0 },
+				aborted: false,
+				willRetry: false,
+			});
+			return true;
 		} finally {
 			this._autoCompactionAbortController = undefined;
 		}

@@ -10,6 +10,19 @@ export interface CompactionSettings {
 	enabled?: boolean; // default: true
 	reserveTokens?: number; // default: 16384
 	keepRecentTokens?: number; // default: 20000
+	/**
+	 * How compaction handles long contexts.
+	 * - "context-full": summarize old history in-place; the current branch
+	 *   keeps the live system prompt + tool array. (Default, unchanged.)
+	 * - "handoff": generate a handoff document from the live system prompt,
+	 *   tool array, and conversation; replace the agent's message history
+	 *   with a single user message containing the document, so the next
+	 *   turn starts from a clean slate. Useful when model weights perform
+	 *   better on a "fresh start" than on long compressed histories.
+	 * - "off": disable compaction entirely (auto + threshold). Manual
+	 *   `/compact` still works.
+	 */
+	strategy?: "context-full" | "handoff" | "off";
 }
 
 export interface BranchSummarySettings {
@@ -795,11 +808,17 @@ export class SettingsManager {
 		return this.settings.compaction?.keepRecentTokens ?? 20000;
 	}
 
-	getCompactionSettings(): { enabled: boolean; reserveTokens: number; keepRecentTokens: number } {
+	getCompactionSettings(): {
+		enabled: boolean;
+		reserveTokens: number;
+		keepRecentTokens: number;
+		strategy: "context-full" | "handoff" | "off";
+	} {
 		return {
 			enabled: this.getCompactionEnabled(),
 			reserveTokens: this.getCompactionReserveTokens(),
 			keepRecentTokens: this.getCompactionKeepRecentTokens(),
+			strategy: this.settings.compaction?.strategy ?? "context-full",
 		};
 	}
 
