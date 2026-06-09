@@ -37,6 +37,8 @@ const defaultWriteOperations: WriteOperations = {
 export interface WriteToolOptions {
 	/** Custom operations for file writing. Default: local filesystem */
 	operations?: WriteOperations;
+	/** Resolve a conflict:// URL to a file write. Returns the resolved content or undefined to fall through. */
+	resolveConflictUrl?: (url: string, resolution: string) => { filePath: string; resolvedContent: string } | undefined;
 }
 
 type WriteHighlightCache = {
@@ -198,7 +200,14 @@ export function createWriteToolDefinition(
 			_onUpdate?,
 			_ctx?,
 		) {
-			const absolutePath = resolveToCwd(path, cwd);
+			// Conflict resolution: when the path is a conflict:// URL, resolve
+			// the conflict before writing. The model writes @ours/@theirs/@base
+			// as the content, and we apply it to the actual file.
+			const conflictResult = options?.resolveConflictUrl?.(path, content);
+			const actualPath = conflictResult ? conflictResult.filePath : path;
+			const actualContent = conflictResult ? conflictResult.resolvedContent : content;
+
+			const absolutePath = resolveToCwd(actualPath, cwd);
 			const dir = dirname(absolutePath);
 			return withFileMutationQueue(absolutePath, async () => {
 				// Do not reject from an abort event listener here: that would release the
@@ -215,11 +224,18 @@ export function createWriteToolDefinition(
 				throwIfAborted();
 
 				// Write the file contents.
-				await ops.writeFile(absolutePath, content);
+				await ops.writeFile(absolutePath, actualContent);
 				throwIfAborted();
 
+				if (conflictResult) {
+					return {
+						content: [{ type: "text", text: `Resolved conflict in ${actualPath}` }],
+						details: undefined,
+					};
+				}
+
 				return {
-					content: [{ type: "text", text: `Successfully wrote ${content.length} bytes to ${path}` }],
+					content: [{ type: "text", text: `Successfully wrote ${actualContent.length} bytes to ${actualPath}` }],
 					details: undefined,
 				};
 			});

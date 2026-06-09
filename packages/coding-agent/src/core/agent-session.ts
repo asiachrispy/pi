@@ -42,6 +42,7 @@ import { SessionQueue } from "./agent-session-queue.ts";
 import { extractUserMessageText } from "./agent-session-tree.ts";
 import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.ts";
 import { type BashResult, executeBashWithOperations } from "./bash-executor.ts";
+import { buildHandoffUserMessage, generateHandoff } from "./compaction/handoff.ts";
 import {
 	type CompactionResult,
 	calculateContextTokens,
@@ -86,6 +87,9 @@ import type { BashExecutionMessage, CustomMessage } from "./messages.ts";
 import type { ModelRegistry } from "./model-registry.ts";
 import { expandPromptTemplate, type PromptTemplate } from "./prompt-templates.ts";
 import type { ResourceExtensionPaths, ResourceLoader } from "./resource-loader.ts";
+import { isRuleUrl, resolveRuleUrl } from "./rules/rule-url.ts";
+import { compileTtsrRules } from "./rules/ttsr.ts";
+import { parseTtsrAbortFromMessage } from "./rules/ttsr-stream.ts";
 import type { BranchSummaryEntry, CompactionEntry, SessionManager } from "./session-manager.ts";
 import { CURRENT_SESSION_VERSION, getLatestCompactionEntry, type SessionHeader } from "./session-manager.ts";
 import type { SettingsManager } from "./settings-manager.ts";
@@ -93,8 +97,16 @@ import type { SlashCommandInfo } from "./slash-commands.ts";
 import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
 import { type BuildSystemPromptOptions, buildSystemPrompt } from "./system-prompt.ts";
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.ts";
+import {
+	type ConflictResolution,
+	isConflictUrl,
+	parseConflictUrl,
+	resolveConflictInFile,
+} from "./tools/conflict-url.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
-import { createToolDefinitionFromAgentTool } from "./tools/tool-definition-wrapper.ts";
+import { createRenderMermaidToolDefinition } from "./tools/render-mermaid.ts";
+import { createToolDefinitionFromAgentTool, wrapToolDefinition } from "./tools/tool-definition-wrapper.ts";
+import { buildToolIndex, createBm25ToolDefinition, type ToolIndexEntry } from "./tools/tool-discovery.ts";
 
 // ============================================================================
 // Skill Block Parsing
@@ -148,7 +160,8 @@ export type AgentSessionEvent =
 			errorMessage?: string;
 	  }
 	| { type: "auto_retry_start"; attempt: number; maxAttempts: number; delayMs: number; errorMessage: string }
-	| { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string };
+	| { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string }
+	| { type: "ttsr_triggered"; ruleName: string; source: string };
 
 /** Listener function for agent session events */
 export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
@@ -924,11 +937,13 @@ export class AgentSession {
 			loaderAppendSystemPrompt.length > 0 ? loaderAppendSystemPrompt.join("\n\n") : undefined;
 		const loadedSkills = this._resourceLoader.getSkills().skills;
 		const loadedContextFiles = this._resourceLoader.getAgentsFiles().agentsFiles;
+		const loadedRules = this._resourceLoader.getRules().rules;
 
 		this._baseSystemPromptOptions = {
 			cwd: this._cwd,
 			skills: loadedSkills,
 			contextFiles: loadedContextFiles,
+			rules: loadedRules,
 			customPrompt: loaderSystemPrompt,
 			appendSystemPrompt,
 			selectedTools: validToolNames,
@@ -974,6 +989,13 @@ export class AgentSession {
 			this._retryAttempt = 0;
 		}
 
+		// TTSR: if the most recent assistant message is a TTSR abort error,
+		// strip it from agent state, inject the rule body as a custom user
+		// message, and continue the run.
+		if (await this._handleTtsrAbort(msg)) {
+			return true;
+		}
+
 		if (await this._checkCompaction(msg)) {
 			return true;
 		}
@@ -981,6 +1003,98 @@ export class AgentSession {
 		// The agent loop drains both queues before emitting agent_end. Any messages
 		// here were queued by agent_end extension handlers and need a continuation.
 		return this.agent.hasQueuedMessages();
+	}
+
+	/**
+	 * Handle a TTSR abort: when the LLM stream was cut short by a TTSR rule
+	 * match, the harness sees the resulting error assistant message. We
+	 * remove the error message from agent state, append a custom user
+	 * message containing the rule body, and signal a continuation.
+	 *
+	 * Returns true when an injection was performed (so the caller can keep
+	 * the agent running).
+	 */
+	private async _handleTtsrAbort(msg: AssistantMessage): Promise<boolean> {
+		if (msg.stopReason !== "error") return false;
+		const parsed = parseTtsrAbortFromMessage(msg.errorMessage);
+		if (!parsed) return false;
+
+		// Re-compile rules on demand so we use the latest settings and rule
+		// files (no separate cache to keep in sync).
+		const ttsrSettings = this.settingsManager.getTtsrSettings();
+		const { compiled } = compileTtsrRules(this.resourceLoader.getRules().rules, ttsrSettings);
+		const rule = compiled.find((r) => r.name === parsed.ruleName);
+		if (!rule) {
+			// No rule body available (settings changed mid-session). Drop the
+			// failed message and continue without injection.
+			this._removeLastAssistantErrorMessage();
+			return false;
+		}
+
+		// 1. Drop the failed assistant message from agent state. We do this
+		// by mutating it in place to a synthetic "aborted" message so the
+		// session log still records that the LLM run ended.
+		this._markAssistantMessageAsAborted(msg);
+
+		// 2. Append a custom user message with the rule body.
+		const injection: CustomMessage = {
+			role: "custom",
+			customType: "ttsr_injection",
+			content: `[TTSR rule "${rule.name}" triggered]\n\n${rule.body}`,
+			display: true,
+			details: { ruleName: rule.name, source: rule.source },
+			timestamp: Date.now(),
+		};
+		this.agent.state.messages.push(injection);
+
+		// 3. Persist the injection as a custom session entry.
+		this.sessionManager.appendCustomMessageEntry(
+			injection.customType,
+			injection.content,
+			injection.display,
+			injection.details,
+		);
+
+		// 4. Notify extensions about the injection.
+		await this._extensionRunner.emit({
+			type: "ttsr_triggered",
+			ruleName: rule.name,
+			source: rule.source,
+		});
+
+		// 5. Continue the run so the LLM sees the injection on the next call.
+		return true;
+	}
+
+	/** Mutate an assistant message in place to a synthetic "aborted" marker. */
+	private _markAssistantMessageAsAborted(msg: AssistantMessage): void {
+		const record = msg as unknown as Record<string, unknown>;
+		record.content = [{ type: "text", text: "" }];
+		record.stopReason = "aborted";
+		record.errorMessage = undefined;
+		// Append a note into the content for the session log.
+		record.content = [
+			{ type: "text", text: "" },
+			{
+				type: "text" as const,
+				text: `[ttsr_aborted:${(msg as AssistantMessage & { errorMessage?: string }).errorMessage ?? "unknown"}]`,
+			},
+		];
+	}
+
+	/**
+	 * Remove the last assistant message in agent state. Used as a fallback
+	 * when a TTSR abort fires but the rule body is no longer available.
+	 */
+	private _removeLastAssistantErrorMessage(): void {
+		const messages = this.agent.state.messages;
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const m = messages[i];
+			if (m.role === "assistant") {
+				messages.splice(i, 1);
+				return;
+			}
+		}
 	}
 
 	/**
@@ -1813,7 +1927,10 @@ export class AgentSession {
 			if (messages.length > 0 && messages[messages.length - 1].role === "assistant") {
 				this.agent.state.messages = messages.slice(0, -1);
 			}
-			return await this._runAutoCompaction("overflow", true);
+			const settings = this.settingsManager.getCompactionSettings();
+			return settings.strategy === "handoff"
+				? await this._runAutoHandoff("overflow")
+				: await this._runAutoCompaction("overflow", true);
 		}
 
 		// Case 2: Threshold - context is getting large
@@ -1840,7 +1957,12 @@ export class AgentSession {
 			contextTokens = calculateContextTokens(assistantMessage.usage);
 		}
 		if (shouldCompact(contextTokens, contextWindow, settings)) {
-			return await this._runAutoCompaction("threshold", false);
+			// handoff strategy is gated separately so the LLM still gets a
+			// chance to summarize via _runAutoCompaction; the actual handoff
+			// path replaces the agent message history in one shot.
+			return settings.strategy === "handoff"
+				? await this._runAutoHandoff("threshold")
+				: await this._runAutoCompaction("threshold", false);
 		}
 		return false;
 	}
@@ -2021,6 +2143,94 @@ export class AgentSession {
 						: `Auto-compaction failed: ${errorMessage}`,
 			});
 			return false;
+		} finally {
+			this._autoCompactionAbortController = undefined;
+		}
+	}
+
+	/**
+	 * Run a handoff compaction: generate a handoff document, then replace
+	 * the agent's message history with a single user message containing
+	 * the document. The handoff document is also persisted as a
+	 * `custom_message` session entry with `customType: "handoff"` so it
+	 * shows up in the session log and restores correctly on resume.
+	 */
+	private async _runAutoHandoff(reason: "overflow" | "threshold"): Promise<boolean> {
+		this._emit({ type: "compaction_start", reason });
+		this._autoCompactionAbortController = new AbortController();
+		const signal = this._autoCompactionAbortController.signal;
+
+		try {
+			if (!this.model) {
+				this._emit({ type: "compaction_end", reason, result: undefined, aborted: false, willRetry: false });
+				return false;
+			}
+
+			let apiKey: string | undefined;
+			let headers: Record<string, string> | undefined;
+			if (this.agent.streamFn === streamSimple) {
+				const authResult = await this._modelRegistry.getApiKeyAndHeaders(this.model);
+				if (!authResult.ok || !authResult.apiKey) {
+					this._emit({ type: "compaction_end", reason, result: undefined, aborted: false, willRetry: false });
+					return false;
+				}
+				apiKey = authResult.apiKey;
+				headers = authResult.headers;
+			} else {
+				({ apiKey, headers } = await this._getCompactionRequestAuth(this.model));
+			}
+
+			const messages = this.agent.state.messages.slice();
+			const toolsDescription = this.agent.state.tools
+				.map((t) => t.name)
+				.sort()
+				.join(", ");
+			const systemPrompt = this.agent.state.systemPrompt;
+
+			let handoffDocument: string;
+			try {
+				handoffDocument = await generateHandoff(messages, {
+					model: this.model,
+					apiKey: apiKey ?? "",
+					headers: headers ?? {},
+					signal,
+					thinkingLevel: this.thinkingLevel,
+					streamFn: this.agent.streamFn,
+					systemPrompt,
+					toolsDescription,
+				});
+			} catch (error) {
+				this._emit({
+					type: "compaction_end",
+					reason,
+					result: undefined,
+					aborted: false,
+					willRetry: false,
+					errorMessage: error instanceof Error ? error.message : String(error),
+				});
+				return false;
+			}
+
+			// Persist the handoff document as a custom message.
+			const handoffMessage = buildHandoffUserMessage(handoffDocument);
+			this.sessionManager.appendCustomMessageEntry(
+				"handoff",
+				`# Handoff from prior agent\n\n${handoffDocument}`,
+				true,
+				{ strategy: "handoff", reason },
+			);
+
+			// Replace agent state messages with the handoff user message.
+			this.agent.state.messages = [handoffMessage];
+
+			this._emit({
+				type: "compaction_end",
+				reason,
+				result: { summary: handoffDocument, firstKeptEntryId: "handoff", tokensBefore: 0 },
+				aborted: false,
+				willRetry: false,
+			});
+			return true;
 		} finally {
 			this._autoCompactionAbortController = undefined;
 		}
@@ -2305,7 +2515,8 @@ export class AgentSession {
 				.filter((entry): entry is readonly [string, string[]] => entry !== undefined),
 		);
 		const runner = this._extensionRunner;
-		const wrappedExtensionTools = wrapRegisteredTools(allCustomTools, runner);
+		const getApprovalSettings = () => this.settingsManager.getApprovalSettings();
+		const wrappedExtensionTools = wrapRegisteredTools(allCustomTools, runner, getApprovalSettings);
 		const wrappedBuiltInTools = wrapRegisteredTools(
 			Array.from(this._baseToolDefinitions.values())
 				.filter((definition) => isAllowedTool(definition.name))
@@ -2314,6 +2525,7 @@ export class AgentSession {
 					sourceInfo: createSyntheticSourceInfo(`<builtin:${definition.name}>`, { source: "builtin" }),
 				})),
 			runner,
+			getApprovalSettings,
 		);
 
 		const toolRegistry = new Map(wrappedBuiltInTools.map((tool) => [tool.name, tool]));
@@ -2321,6 +2533,39 @@ export class AgentSession {
 			toolRegistry.set(tool.name, tool);
 		}
 		this._toolRegistry = toolRegistry;
+
+		// Register the BM25 hidden-tool discovery tool when discoveryMode is set.
+		const discoveryMode = this.settingsManager.getToolDiscoveryMode();
+		if (discoveryMode === "bm25") {
+			const bm25ToolDef = createBm25ToolDefinition(
+				() => {
+					const all: ToolIndexEntry[] = [];
+					for (const [name, tool] of this._toolRegistry) {
+						if (name === "search_tool_bm25") continue;
+						all.push({ name, description: tool.description, label: tool.label });
+					}
+					return buildToolIndex(new Set(this.getActiveToolNames()), all);
+				},
+				// Activating a tool via setActiveToolsByName updates the agent's
+				// active tool list but the system prompt is rebuilt at the start
+				// of the next turn. This matches the documented behavior: matched
+				// tools become available on the next LLM call.
+				(name) => {
+					if (!this.getActiveToolNames().includes(name)) {
+						this.setActiveToolsByName([...this.getActiveToolNames(), name]);
+					}
+				},
+			);
+			const bm25Tool = wrapToolDefinition(bm25ToolDef, () => runner.createContext());
+			this._toolRegistry.set("search_tool_bm25", bm25Tool);
+		}
+
+		// Register the render_mermaid tool when enabled.
+		if (this.settingsManager.getRenderMermaidEnabled()) {
+			const mermaidToolDef = createRenderMermaidToolDefinition();
+			const mermaidTool = wrapToolDefinition(mermaidToolDef, () => runner.createContext());
+			this._toolRegistry.set("render_mermaid", mermaidTool);
+		}
 
 		const nextActiveToolNames = (
 			options?.activeToolNames ? [...options.activeToolNames] : [...previousActiveToolNames]
@@ -2363,7 +2608,21 @@ export class AgentSession {
 					]),
 				)
 			: createAllToolDefinitions(this._cwd, {
-					read: { autoResizeImages },
+					read: {
+						autoResizeImages,
+						resolveInternalUrl: (url) =>
+							isRuleUrl(url) ? resolveRuleUrl(url, this._resourceLoader.getRules().rules) : undefined,
+					},
+					write: {
+						resolveConflictUrl: (url, resolution) => {
+							if (!isConflictUrl(url)) return undefined;
+							const parsed = parseConflictUrl(url);
+							if (!parsed || parsed.path === "*") return undefined;
+							const result = resolveConflictInFile(parsed.path, resolution as ConflictResolution, null);
+							if (!result || result.resolved === 0) return undefined;
+							return { filePath: parsed.path, resolvedContent: result.content };
+						},
+					},
 					bash: { commandPrefix: shellCommandPrefix, shellPath },
 				});
 

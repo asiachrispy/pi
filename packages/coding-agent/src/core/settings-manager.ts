@@ -10,6 +10,19 @@ export interface CompactionSettings {
 	enabled?: boolean; // default: true
 	reserveTokens?: number; // default: 16384
 	keepRecentTokens?: number; // default: 20000
+	/**
+	 * How compaction handles long contexts.
+	 * - "context-full": summarize old history in-place; the current branch
+	 *   keeps the live system prompt + tool array. (Default, unchanged.)
+	 * - "handoff": generate a handoff document from the live system prompt,
+	 *   tool array, and conversation; replace the agent's message history
+	 *   with a single user message containing the document, so the next
+	 *   turn starts from a clean slate. Useful when model weights perform
+	 *   better on a "fresh start" than on long compressed histories.
+	 * - "off": disable compaction entirely (auto + threshold). Manual
+	 *   `/compact` still works.
+	 */
+	strategy?: "context-full" | "handoff" | "off";
 }
 
 export interface BranchSummarySettings {
@@ -40,6 +53,48 @@ export interface TerminalSettings {
 export interface ImageSettings {
 	autoResize?: boolean; // default: true (resize images to 2000x2000 max for better model compatibility)
 	blockImages?: boolean; // default: false - when true, prevents all images from being sent to LLM providers
+}
+
+export type ApprovalMode = "yolo" | "write" | "always-ask";
+
+export type PerToolApproval = "allow" | "deny" | "prompt";
+
+export type RuleInterruptMode = "never" | "prose-only" | "tool-only" | "always";
+
+export interface TtsrSettingsRule {
+	name?: string;
+	pattern: string;
+	body: string;
+	interruptMode?: RuleInterruptMode;
+	globs?: string[];
+}
+
+export interface TtsrSettings {
+	enabled?: boolean;
+	rules?: TtsrSettingsRule[];
+}
+
+/**
+ * Tool-level approval settings.
+ *
+ * - `approvalMode` is the global default policy (default: "yolo" — auto-approve).
+ * - `approval` provides per-tool overrides that win over the global mode.
+ *
+ * Built-in tools declare a default tier via `ToolDefinition.approval`; unknown
+ * or MCP tools default to `exec`. `override: true` on a tool's decision forces
+ * a prompt in non-yolo modes even when the user policy says allow.
+ */
+export interface ToolsSettings {
+	approvalMode?: ApprovalMode;
+	approval?: Record<string, PerToolApproval>;
+	/** Time-traveling stream rules: regex triggers that abort the LLM stream. */
+	ttsr?: TtsrSettings;
+	/** Tool discovery: "off" (default) or "bm25" (hidden tools are searchable). */
+	discoveryMode?: "off" | "bm25";
+}
+
+export interface RenderMermaidSettings {
+	enabled?: boolean;
 }
 
 export interface ThinkingBudgetsSettings {
@@ -113,6 +168,8 @@ export interface Settings {
 	sessionDir?: string; // Custom session storage directory (same format as --session-dir CLI flag)
 	httpIdleTimeoutMs?: number; // HTTP header/body idle timeout in milliseconds; 0 disables it
 	websocketConnectTimeoutMs?: number; // WebSocket connect/open handshake timeout in milliseconds; 0 disables it
+	tools?: ToolsSettings;
+	renderMermaid?: RenderMermaidSettings;
 }
 
 /** Deep merge settings: project/overrides take precedence, nested objects merge recursively */
@@ -758,11 +815,17 @@ export class SettingsManager {
 		return this.settings.compaction?.keepRecentTokens ?? 20000;
 	}
 
-	getCompactionSettings(): { enabled: boolean; reserveTokens: number; keepRecentTokens: number } {
+	getCompactionSettings(): {
+		enabled: boolean;
+		reserveTokens: number;
+		keepRecentTokens: number;
+		strategy: "context-full" | "handoff" | "off";
+	} {
 		return {
 			enabled: this.getCompactionEnabled(),
 			reserveTokens: this.getCompactionReserveTokens(),
 			keepRecentTokens: this.getCompactionKeepRecentTokens(),
+			strategy: this.settings.compaction?.strategy ?? "context-full",
 		};
 	}
 
@@ -1071,6 +1134,42 @@ export class SettingsManager {
 		this.globalSettings.images.blockImages = blocked;
 		this.markModified("images", "blockImages");
 		this.save();
+	}
+
+	getApprovalSettings(): { mode: ApprovalMode; perTool: Record<string, PerToolApproval> } {
+		return {
+			mode: this.settings.tools?.approvalMode ?? "yolo",
+			perTool: this.settings.tools?.approval ?? {},
+		};
+	}
+
+	getTtsrSettings(): TtsrSettings {
+		return this.settings.tools?.ttsr ?? {};
+	}
+
+	getToolDiscoveryMode(): "off" | "bm25" {
+		const mode = this.settings.tools?.discoveryMode;
+		return mode === "bm25" ? "bm25" : "off";
+	}
+
+	getRenderMermaidEnabled(): boolean {
+		return this.settings.renderMermaid?.enabled ?? false;
+	}
+
+	/**
+	 * Apply a session-scoped approval mode override (e.g. from `--yolo`).
+	 *
+	 * Unlike the public setters, this does not persist the change to disk —
+	 * it is meant for CLI flags that should only affect the current session.
+	 * The merged `settings` view is refreshed so `getApprovalSettings()`
+	 * returns the new value immediately.
+	 */
+	setSessionApprovalMode(mode: ApprovalMode): void {
+		if (!this.globalSettings.tools) {
+			this.globalSettings.tools = {};
+		}
+		this.globalSettings.tools.approvalMode = mode;
+		this.settings = deepMergeSettings(this.globalSettings, this.projectSettings);
 	}
 
 	getEnabledModels(): string[] | undefined {
