@@ -97,6 +97,12 @@ import type { SlashCommandInfo } from "./slash-commands.ts";
 import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
 import { type BuildSystemPromptOptions, buildSystemPrompt } from "./system-prompt.ts";
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.ts";
+import {
+	type ConflictResolution,
+	isConflictUrl,
+	parseConflictUrl,
+	resolveConflictInFile,
+} from "./tools/conflict-url.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
 import { createToolDefinitionFromAgentTool } from "./tools/tool-definition-wrapper.ts";
 
@@ -2571,6 +2577,16 @@ export class AgentSession {
 						autoResizeImages,
 						resolveInternalUrl: (url) =>
 							isRuleUrl(url) ? resolveRuleUrl(url, this._resourceLoader.getRules().rules) : undefined,
+					},
+					write: {
+						resolveConflictUrl: (url, resolution) => {
+							if (!isConflictUrl(url)) return undefined;
+							const parsed = parseConflictUrl(url);
+							if (!parsed || parsed.path === "*") return undefined;
+							const result = resolveConflictInFile(parsed.path, resolution as ConflictResolution, null);
+							if (!result || result.resolved === 0) return undefined;
+							return { filePath: parsed.path, resolvedContent: result.content };
+						},
 					},
 					bash: { commandPrefix: shellCommandPrefix, shellPath },
 				});
