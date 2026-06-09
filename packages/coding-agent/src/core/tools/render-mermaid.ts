@@ -46,24 +46,34 @@ function parseGraph(source: string): MermaidGraph {
 		const line = raw.trim();
 		if (!line || line.startsWith("%%")) continue;
 
-		// node[Label] or node(Label) or node{Label} or node>Label]
-		const nodeMatch = /^(\w+)\s*[[({>]([^\]]*?)[\])}>\]]$/.exec(line);
-		if (nodeMatch) {
-			nodes.set(nodeMatch[1] ?? "", (nodeMatch[2] ?? "").trim());
+		// Standalone node definition: id[Label] or id(Label) or id{Label}
+		const soloNode = /^(\w+)\s*[\[({]\s*([^\])}]*)\s*[\])}]\s*$/.exec(line);
+		if (soloNode) {
+			nodes.set(soloNode[1] ?? "", (soloNode[2] ?? "").trim());
 			continue;
 		}
 
-		// A -->|label| B
-		const edgeMatch = /^(\w+)\s*-->\|(.+?)\|\s*(\w+)$/.exec(line);
+		// Edge with optional inline node labels and optional edge label.
+		// Matches: A --> B, A[label] --> B, A --> B[label], A -->|label| B
+		const edgeMatch = /^(\w+)(?:\s*\[[^\]]*\])?\s*-->(?:\|([^|]*)\|)?\s*(\w+)(?:\s*\[[^\]]*\])?\s*$/.exec(line);
 		if (edgeMatch) {
-			edges.push({ from: edgeMatch[1] ?? "", to: edgeMatch[3] ?? "", label: edgeMatch[2]?.trim() });
-			continue;
-		}
+			const fromId = edgeMatch[1] ?? "";
+			const edgeLabel = edgeMatch[2]?.trim();
+			const toId = edgeMatch[3] ?? "";
 
-		// Plain A --> B
-		const simpleMatch = /^(\w+)\s*-->\s*(\w+)$/.exec(line);
-		if (simpleMatch) {
-			edges.push({ from: simpleMatch[1] ?? "", to: simpleMatch[2] ?? "" });
+			// Extract inline labels from brackets in the original line.
+			const fromLabelMatch = /(\w+)\s*\[([^\]]*)\]/.exec(line);
+			if (fromLabelMatch && fromLabelMatch[1] === fromId) {
+				nodes.set(fromId, (fromLabelMatch[2] ?? "").trim());
+			}
+			// Find the second bracket pair (after -->).
+			const afterArrow = line.slice(line.indexOf("-->") + 3);
+			const toLabelMatch = /(\w+)\s*\[([^\]]*)\]/.exec(afterArrow);
+			if (toLabelMatch && toLabelMatch[1] === toId) {
+				nodes.set(toId, (toLabelMatch[2] ?? "").trim());
+			}
+
+			edges.push({ from: fromId, to: toId, label: edgeLabel || undefined });
 		}
 	}
 
@@ -192,7 +202,7 @@ export function createRenderMermaidToolDefinition(): ToolDefinition<typeof merma
 			"Render a Mermaid diagram to terminal-friendly text. Supports simple flowcharts (graph TD/LR) and sequence diagrams. Returns ASCII art suitable for reading in a terminal. Use this when you want to visualize a flow or sequence mentioned in text.",
 		promptSnippet: "Render Mermaid diagrams to terminal text",
 		parameters: mermaidSchema,
-		async execute(_toolCallId, input: MermaidInput, _signal?, _onUpdate?) {
+		async execute(_toolCallId, input: MermaidInput, _signal?, _onUpdate?, _ctx?) {
 			const useAscii = input.config?.useAscii ?? false;
 			let output: string;
 

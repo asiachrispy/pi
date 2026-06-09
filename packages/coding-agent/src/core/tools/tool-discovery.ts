@@ -47,6 +47,7 @@ function scoreEntry(entry: ToolIndexEntry, query: string): number {
 
 /** Search the index for tools matching a query. Returns matches sorted by relevance. */
 export function searchToolIndex(index: ToolIndexEntry[], query: string, maxResults = 5): ToolIndexEntry[] {
+	if (!query.trim()) return [];
 	const scored = index
 		.map((entry) => ({ entry, score: scoreEntry(entry, query) }))
 		.filter((s) => s.score > 0)

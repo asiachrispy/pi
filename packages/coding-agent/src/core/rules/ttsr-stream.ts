@@ -135,10 +135,15 @@ function wrapAssistantStream(
 	return out;
 }
 
-/** Get the inner stream's current partial, or build a minimal one on error. */
+/** Get the inner stream's current partial, or build a minimal one on error.
+ * Wraps `stream.result()` with a 5-second timeout to avoid hanging when
+ * the inner provider stream is still open after a TTSR abort. */
 async function safeResult(stream: AssistantMessageEventStream, errorMessage: string): Promise<AssistantMessage> {
 	try {
-		const m = await stream.result();
+		const m = await Promise.race([
+			stream.result(),
+			new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5_000)),
+		]);
 		return { ...m, stopReason: "error" as const, errorMessage };
 	} catch {
 		return {

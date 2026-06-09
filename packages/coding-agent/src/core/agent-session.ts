@@ -2546,6 +2546,10 @@ export class AgentSession {
 					}
 					return buildToolIndex(new Set(this.getActiveToolNames()), all);
 				},
+				// Activating a tool via setActiveToolsByName updates the agent's
+				// active tool list but the system prompt is rebuilt at the start
+				// of the next turn. This matches the documented behavior: matched
+				// tools become available on the next LLM call.
 				(name) => {
 					if (!this.getActiveToolNames().includes(name)) {
 						this.setActiveToolsByName([...this.getActiveToolNames(), name]);

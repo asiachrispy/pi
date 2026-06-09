@@ -41,6 +41,12 @@ export function wrapToolDefinitions(
 /**
  * Result of a blocked tool call. Surfaced as an `isError` result so the
  * harness still records the call in the session log.
+ *
+ * `details: undefined as TDetails` is intentional: a blocked call has no
+ * real details, but `AgentToolResult<TDetails>` requires a non-optional
+ * `details` field. This is the only cast in the wrapper;
+ * `wrapToolDefinitionWithApproval` returns `AgentTool<any, TDetails>`
+ * which accepts `undefined as TDetails` at the call site.
  */
 function blockedToolResult<TDetails>(reason: string) {
 	return {
