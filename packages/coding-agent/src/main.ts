@@ -7,13 +7,14 @@
 
 import { createInterface } from "node:readline";
 import { type ImageContent, modelsAreEqual } from "@earendil-works/pi-ai";
-import { ProcessTerminal, setKeybindings, TUI } from "@earendil-works/pi-tui";
 import chalk from "chalk";
 import { type Args, type Mode, parseArgs, printHelp } from "./cli/args.ts";
 import { processFileArguments } from "./cli/file-processor.ts";
 import { buildInitialMessage } from "./cli/initial-message.ts";
 import { listModels } from "./cli/list-models.ts";
+import { createProjectTrustContext } from "./cli/project-trust.ts";
 import { selectSession } from "./cli/session-picker.ts";
+import { showStartupSelector } from "./cli/startup-ui.ts";
 import { ENV_SESSION_DIR, expandTildePath, getAgentDir, getPackageDir, VERSION } from "./config.ts";
 import { type CreateAgentSessionRuntimeFactory, createAgentSessionRuntime } from "./core/agent-session-runtime.ts";
 import {
@@ -26,10 +27,10 @@ import { AuthStorage } from "./core/auth-storage.ts";
 import { exportFromFile } from "./core/export-html/index.ts";
 import type { ExtensionFactory } from "./core/extensions/types.ts";
 import { configureHttpDispatcher } from "./core/http-dispatcher.ts";
-import { KeybindingsManager } from "./core/keybindings.ts";
 import type { ModelRegistry } from "./core/model-registry.ts";
 import { resolveCliModel, resolveModelScope, type ScopedModel } from "./core/model-resolver.ts";
 import { restoreStdout, takeOverStdout } from "./core/output-guard.ts";
+import { type AppMode, resolveProjectTrusted } from "./core/project-trust.ts";
 import type { CreateAgentSessionOptions } from "./core/sdk.ts";
 import {
 	formatMissingSessionCwdPrompt,
@@ -43,7 +44,6 @@ import { printTimings, resetTimings, time } from "./core/timings.ts";
 import { hasProjectTrustInputs, ProjectTrustStore } from "./core/trust-manager.ts";
 import { runMigrations, showDeprecationWarnings } from "./migrations.ts";
 import { InteractiveMode, runPrintMode, runRpcMode } from "./modes/index.ts";
-import { ExtensionSelectorComponent } from "./modes/interactive/components/extension-selector.ts";
 import { initTheme, stopThemeWatcher } from "./modes/interactive/theme/theme.ts";
 import { handleConfigCommand, handlePackageCommand } from "./package-manager-cli.ts";
 import { isLocalPath, normalizePath, resolvePath } from "./utils/paths.ts";
@@ -95,16 +95,14 @@ function isTruthyEnvFlag(value: string | undefined): boolean {
 	return value === "1" || value.toLowerCase() === "true" || value.toLowerCase() === "yes";
 }
 
-type AppMode = "interactive" | "print" | "json" | "rpc";
-
-function resolveAppMode(parsed: Args, stdinIsTTY: boolean): AppMode {
+function resolveAppMode(parsed: Args, stdinIsTTY: boolean, stdoutIsTTY: boolean): AppMode {
 	if (parsed.mode === "rpc") {
 		return "rpc";
 	}
 	if (parsed.mode === "json") {
 		return "json";
 	}
-	if (parsed.print || !stdinIsTTY) {
+	if (parsed.print || !stdinIsTTY || !stdoutIsTTY) {
 		return "print";
 	}
 	return "interactive";
@@ -112,6 +110,10 @@ function resolveAppMode(parsed: Args, stdinIsTTY: boolean): AppMode {
 
 function toPrintOutputMode(appMode: AppMode): Exclude<Mode, "rpc"> {
 	return appMode === "json" ? "json" : "text";
+}
+
+function isPlainRuntimeMetadataCommand(parsed: Args): boolean {
+	return !parsed.print && parsed.mode === undefined && (parsed.help === true || parsed.listModels !== undefined);
 }
 
 async function prepareInitialMessage(
@@ -437,41 +439,6 @@ function resolveCliPaths(cwd: string, paths: string[] | undefined): string[] | u
 	return paths?.map((value) => (isLocalPath(value) ? resolvePath(value, cwd) : value));
 }
 
-async function showStartupSelector<T>(
-	settingsManager: SettingsManager,
-	title: string,
-	options: Array<{ label: string; value: T }>,
-): Promise<T | undefined> {
-	initTheme(settingsManager.getTheme());
-	setKeybindings(KeybindingsManager.create());
-
-	return new Promise((resolve) => {
-		const ui = new TUI(new ProcessTerminal(), settingsManager.getShowHardwareCursor());
-		ui.setClearOnShrink(settingsManager.getClearOnShrink());
-
-		let settled = false;
-		const finish = (result: T | undefined) => {
-			if (settled) {
-				return;
-			}
-			settled = true;
-			ui.stop();
-			resolve(result);
-		};
-
-		const selector = new ExtensionSelectorComponent(
-			title,
-			options.map((option) => option.label),
-			(option) => finish(options.find((entry) => entry.label === option)?.value),
-			() => finish(undefined),
-			{ tui: ui },
-		);
-		ui.addChild(selector);
-		ui.setFocus(selector);
-		ui.start();
-	});
-}
-
 async function promptForMissingSessionCwd(
 	issue: SessionCwdIssue,
 	settingsManager: SettingsManager,
@@ -480,59 +447,6 @@ async function promptForMissingSessionCwd(
 		{ label: "Continue", value: issue.fallbackCwd },
 		{ label: "Cancel", value: undefined },
 	]);
-}
-
-interface ProjectTrustPromptResult {
-	trusted: boolean;
-	remember: boolean;
-}
-
-async function promptForProjectTrust(
-	cwd: string,
-	settingsManager: SettingsManager,
-): Promise<ProjectTrustPromptResult | undefined> {
-	return showStartupSelector(
-		settingsManager,
-		`Trust project folder?\n${cwd}\n\nThis allows pi to read project instructions (AGENTS.md/CLAUDE.md), load .pi settings and resources, install missing project packages, and execute project extensions.`,
-		[
-			{ label: "Trust", value: { trusted: true, remember: true } },
-			{ label: "Trust (this session only)", value: { trusted: true, remember: false } },
-			{ label: "Do not trust", value: { trusted: false, remember: true } },
-			{ label: "Do not trust (this session only)", value: { trusted: false, remember: false } },
-		],
-	);
-}
-
-async function resolveProjectTrusted(options: {
-	cwd: string;
-	trustStore: ProjectTrustStore;
-	trustOverride?: boolean;
-	appMode: AppMode;
-	settingsManagerForPrompt: SettingsManager;
-}): Promise<boolean> {
-	if (options.trustOverride !== undefined) {
-		return options.trustOverride;
-	}
-	if (!hasProjectTrustInputs(options.cwd)) {
-		return true;
-	}
-
-	const decision = options.trustStore.get(options.cwd);
-	if (decision !== null) {
-		return decision;
-	}
-	if (options.appMode !== "interactive") {
-		return false;
-	}
-
-	const selected = await promptForProjectTrust(options.cwd, options.settingsManagerForPrompt);
-	if (selected !== undefined) {
-		if (selected.remember) {
-			options.trustStore.set(options.cwd, selected.trusted);
-		}
-		return selected.trusted;
-	}
-	return false;
 }
 
 export interface MainOptions {
@@ -551,11 +465,11 @@ export async function main(args: string[], options?: MainOptions) {
 		cleanupWindowsSelfUpdateQuarantine(getPackageDir());
 	}
 
-	if (await handlePackageCommand(args)) {
+	if (await handlePackageCommand(args, { extensionFactories: options?.extensionFactories })) {
 		return;
 	}
 
-	if (await handleConfigCommand(args)) {
+	if (await handleConfigCommand(args, { extensionFactories: options?.extensionFactories })) {
 		return;
 	}
 
@@ -570,11 +484,6 @@ export async function main(args: string[], options?: MainOptions) {
 		}
 	}
 	time("parseArgs");
-	let appMode = resolveAppMode(parsed, process.stdin.isTTY);
-	const shouldTakeOverStdout = appMode !== "interactive";
-	if (shouldTakeOverStdout) {
-		takeOverStdout();
-	}
 
 	if (parsed.version) {
 		console.log(VERSION);
@@ -593,6 +502,12 @@ export async function main(args: string[], options?: MainOptions) {
 		}
 		console.log(`Exported to: ${result}`);
 		process.exit(0);
+	}
+
+	let appMode = resolveAppMode(parsed, process.stdin.isTTY, process.stdout.isTTY);
+	const shouldTakeOverStdout = appMode !== "interactive" && !isPlainRuntimeMetadataCommand(parsed);
+	if (shouldTakeOverStdout) {
+		takeOverStdout();
 	}
 
 	if (parsed.mode === "rpc" && parsed.fileArgs.length > 0) {
@@ -647,14 +562,11 @@ export async function main(args: string[], options?: MainOptions) {
 	time("createSessionManager");
 
 	const trustStore = new ProjectTrustStore(agentDir);
+	const sessionCwd = sessionManager.getCwd();
+	const autoTrustOnReloadCwd =
+		parsed.projectTrustOverride === undefined && !hasProjectTrustInputs(sessionCwd) ? sessionCwd : undefined;
 	const trustPromptMode: AppMode = parsed.help || parsed.listModels !== undefined ? "print" : appMode;
-	const projectTrustedForSession = await resolveProjectTrusted({
-		cwd: sessionManager.getCwd(),
-		trustStore,
-		trustOverride: parsed.projectTrustOverride,
-		appMode: trustPromptMode,
-		settingsManagerForPrompt: startupSettingsManager,
-	});
+	const projectTrustByCwd = new Map<string, boolean>();
 
 	const resolvedExtensionPaths = resolveCliPaths(cwd, parsed.extensions);
 	const resolvedSkillPaths = resolveCliPaths(cwd, parsed.skills);
@@ -666,11 +578,17 @@ export async function main(args: string[], options?: MainOptions) {
 		agentDir,
 		sessionManager,
 		sessionStartEvent,
+		projectTrustContext,
 	}) => {
-		const projectTrusted =
-			cwd === sessionManager.getCwd()
-				? projectTrustedForSession
-				: (parsed.projectTrustOverride ?? (!hasProjectTrustInputs(cwd) || trustStore.get(cwd) === true));
+		const isInitialRuntime = sessionStartEvent === undefined;
+		const projectTrustDiagnostics: AgentSessionRuntimeDiagnostic[] = [];
+		const cachedProjectTrust = projectTrustByCwd.get(cwd);
+		const hasTrustInputs = hasProjectTrustInputs(cwd);
+		const shouldResolveProjectTrust =
+			parsed.projectTrustOverride === undefined && cachedProjectTrust === undefined && hasTrustInputs;
+		const projectTrusted = shouldResolveProjectTrust
+			? false
+			: (cachedProjectTrust ?? parsed.projectTrustOverride ?? (!hasTrustInputs || trustStore.get(cwd) === true));
 		const runtimeSettingsManager = SettingsManager.create(cwd, agentDir, { projectTrusted });
 		const services = await createAgentSessionServices({
 			cwd,
@@ -678,6 +596,30 @@ export async function main(args: string[], options?: MainOptions) {
 			authStorage,
 			settingsManager: runtimeSettingsManager,
 			extensionFlagValues: parsed.unknownFlags,
+			resourceLoaderReloadOptions: shouldResolveProjectTrust
+				? {
+						resolveProjectTrust: async ({ extensionsResult }) => {
+							const trusted = await resolveProjectTrusted({
+								cwd,
+								trustStore,
+								trustOverride: parsed.projectTrustOverride,
+								defaultProjectTrust: startupSettingsManager.getDefaultProjectTrust(),
+								extensionsResult,
+								projectTrustContext:
+									projectTrustContext ??
+									createProjectTrustContext({
+										cwd,
+										mode: isInitialRuntime ? trustPromptMode : appMode,
+										settingsManager: startupSettingsManager,
+										hasUI: isInitialRuntime && trustPromptMode === "interactive",
+									}),
+								onExtensionError: (message) => projectTrustDiagnostics.push({ type: "warning", message }),
+							});
+							projectTrustByCwd.set(cwd, trusted);
+							return trusted;
+						},
+					}
+				: undefined,
 			resourceLoaderOptions: {
 				additionalExtensionPaths: resolvedExtensionPaths,
 				additionalSkillPaths: resolvedSkillPaths,
@@ -695,6 +637,7 @@ export async function main(args: string[], options?: MainOptions) {
 		});
 		const { settingsManager, modelRegistry, resourceLoader } = services;
 		const diagnostics: AgentSessionRuntimeDiagnostic[] = [
+			...projectTrustDiagnostics,
 			...services.diagnostics,
 			...collectSettingsDiagnostics(settingsManager, "runtime creation"),
 			...resourceLoader.getExtensions().errors.map(({ path, error }) => ({
@@ -827,6 +770,7 @@ export async function main(args: string[], options?: MainOptions) {
 		const interactiveMode = new InteractiveMode(runtime, {
 			migratedProviders,
 			modelFallbackMessage,
+			autoTrustOnReloadCwd,
 			initialMessage,
 			initialImages,
 			initialMessages: parsed.messages,
