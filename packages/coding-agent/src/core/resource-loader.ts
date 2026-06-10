@@ -394,9 +394,6 @@ export class DefaultResourceLoader implements ResourceLoader {
 		const extensionPaths = this.noExtensions
 			? cliEnabledExtensions
 			: this.mergePaths(cliEnabledExtensions, enabledExtensions);
-		const filteredExtensionPaths = this.excludeExtensionPaths
-			? extensionPaths.filter((p) => !this.excludeExtensionPaths!(p))
-			: extensionPaths;
 
 		const extensionsResult = await this.loadFinalExtensionSet(extensionPaths, preTrustExtensions);
 		for (const p of this.additionalExtensionPaths) {
