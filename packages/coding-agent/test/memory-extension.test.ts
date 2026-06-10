@@ -170,6 +170,7 @@ function createContext(
 		getContextUsage: () => undefined,
 		compact: vi.fn(),
 		getSystemPrompt: () => "",
+		isProjectTrusted: () => true,
 	};
 }
 
