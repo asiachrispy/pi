@@ -12,6 +12,7 @@
 - `conflict://` URL scheme for git conflict resolution via the write tool.
 - BM25 hidden tool discovery (`tools.discoveryMode: \"bm25\"`, `search_tool_bm25` tool).
 - `render_mermaid` built-in tool (gated behind `renderMermaid.enabled`).
+- Added an experimental first-time setup flow behind `PI_EXPERIMENTAL=1` that asks for a dark/light theme choice (preselecting the detected appearance) and opt-in analytics data sharing on first launch with the default agent directory; opting in stores a `trackingId` in `settings.json`.
 
 ## [0.79.1] - 2026-06-09
 

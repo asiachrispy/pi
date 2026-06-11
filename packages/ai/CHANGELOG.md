@@ -7,6 +7,10 @@
 - Added pure `isRetryableAssistantError` and `isNonRetryableProviderLimitError` helpers in `utils/retry-classification.ts`, extracted from the agent-session retry path so the classification rules can be unit-tested independently and reused by other layers.
 - Shared `getServiceTierCostMultiplier` and `applyServiceTierPricing` between `openai-responses` and `openai-codex-responses` providers via `openai-responses-shared.ts`, removing the duplicated per-provider copies.
 
+### Changed
+
+- When Amazon Bedrock rejects an unsupported data retention mode, the error now links the AWS data retention documentation ([#5561](https://github.com/earendil-works/pi/pull/5561) by [@unexge](https://github.com/unexge)).
+
 ## [0.78.2] - 2026-06-06
 
 ### Fixed
