@@ -2,9 +2,23 @@
 
 ## [Unreleased]
 
+## [0.79.6] - 2026-06-16
+
+## [0.79.5] - 2026-06-16
+
+### Changed
+
+- Updated Markdown parsing to `marked` 18.0.5.
+
+### Fixed
+
+- Fixed editor Cursor Up handling so non-empty drafts jump to the start of the line before browsing input history ([#5789](https://github.com/earendil-works/pi/pull/5789) by [@4h9fbZ](https://github.com/4h9fbZ)).
+
+## [0.79.4] - 2026-06-15
+
 ### Added
 
-- Added terminal background color query support for OSC 11 replies.
+- Added terminal background color query support for OSC 11 replies ([#5385](https://github.com/earendil-works/pi/pull/5385) by [@vegarsti](https://github.com/vegarsti)).
 
 ### Fixed
 
