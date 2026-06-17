@@ -13,6 +13,8 @@ import { createAgentSession } from "../../../src/core/sdk.ts";
 import { SessionManager } from "../../../src/core/session-manager.ts";
 import { SettingsManager } from "../../../src/core/settings-manager.ts";
 
+const DEFAULT_MEMORY_TOOL_NAMES = ["memory_delete", "memory_get", "memory_list", "memory_search", "memory_set"];
+
 describe("regression #3592: no-builtin-tools keeps extension tools enabled", () => {
 	let tempDir: string;
 	let agentDir: string;
@@ -78,9 +80,10 @@ describe("regression #3592: no-builtin-tools keeps extension tools enabled", () 
 				.getAllTools()
 				.map((tool) => tool.name)
 				.sort(),
-		).toEqual(["bash", "dynamic_tool", "edit", "find", "grep", "ls", "read", "write"]);
-		expect(session.getActiveToolNames()).toEqual(["dynamic_tool"]);
+		).toEqual(["bash", "dynamic_tool", "edit", "find", "grep", "ls", ...DEFAULT_MEMORY_TOOL_NAMES, "read", "write"]);
+		expect(session.getActiveToolNames().sort()).toEqual(["dynamic_tool", ...DEFAULT_MEMORY_TOOL_NAMES].sort());
 		expect(session.systemPrompt).toContain("- dynamic_tool: Run dynamic test behavior");
+		expect(session.systemPrompt).toContain("- memory_set: memory_set: save a project memory by snake_case key");
 		expect(session.systemPrompt).not.toContain("- read:");
 		expect(session.systemPrompt).not.toContain("- bash:");
 		session.dispose();
@@ -111,8 +114,8 @@ describe("regression #3592: no-builtin-tools keeps extension tools enabled", () 
 			noTools: "builtin",
 		});
 
-		expect(session.getActiveToolNames()).toEqual([]);
-		expect(session.systemPrompt).toContain("Available tools:\n(none)");
+		expect(session.getActiveToolNames().sort()).toEqual(DEFAULT_MEMORY_TOOL_NAMES);
+		expect(session.systemPrompt).toContain("- memory_set: memory_set: save a project memory by snake_case key");
 		expect(session.systemPrompt).not.toContain("- read:");
 		session.dispose();
 	});
