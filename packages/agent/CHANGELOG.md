@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.79.9] - 2026-06-17
+
+### Fixed
+
+- Republished the `@livos` fork package against `@livos/pi-ai@0.79.9` so direct installs resolve internal dependencies from visible npm metadata.
+
 ## [0.79.8] - 2026-06-17
 
 ## [0.79.7] - 2026-06-17

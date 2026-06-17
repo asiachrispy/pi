@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.79.9] - 2026-06-17
+
+### Fixed
+
+- Republished the `@livos` fork package to restore npm registry metadata visibility after the `0.79.8` publish left the package tarball present but the package document unavailable.
+
 ## [0.79.8] - 2026-06-17
 
 ## [0.79.7] - 2026-06-17

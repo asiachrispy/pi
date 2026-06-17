@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.79.9] - 2026-06-17
+
+### Fixed
+
+- Republished the `@livos` fork package with internal dependencies pinned to the visible `0.79.9` fork packages.
+
 ## [0.79.8] - 2026-06-17
 
 ## [0.79.7] - 2026-06-17
