@@ -4,6 +4,44 @@
 import type { Model } from "./types.ts";
 
 export const MODELS = {
+	"agnes": {
+		"sapiens-ai/agnes-1.5-lite": {
+			id: "sapiens-ai/agnes-1.5-lite",
+			name: "Agnes 1.5 Lite",
+			api: "openai-completions",
+			provider: "agnes",
+			baseUrl: "https://agnes-ai.com/api/v1",
+			compat: {"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":true,"maxTokensField":"max_tokens","supportsStrictMode":false,"supportsLongCacheRetention":false},
+			reasoning: false,
+			input: ["text", "image"],
+			cost: {
+				input: 1.2e-7,
+				output: 6e-7,
+				cacheRead: 0,
+				cacheWrite: 0,
+			},
+			contextWindow: 256000,
+			maxTokens: 32768,
+		} satisfies Model<"openai-completions">,
+		"sapiens-ai/agnes-1.5-pro": {
+			id: "sapiens-ai/agnes-1.5-pro",
+			name: "Agnes 1.5 Pro",
+			api: "openai-completions",
+			provider: "agnes",
+			baseUrl: "https://agnes-ai.com/api/v1",
+			compat: {"supportsStore":false,"supportsDeveloperRole":false,"supportsReasoningEffort":true,"maxTokensField":"max_tokens","supportsStrictMode":false,"supportsLongCacheRetention":false},
+			reasoning: true,
+			input: ["text"],
+			cost: {
+				input: 1.6e-7,
+				output: 8e-7,
+				cacheRead: 0,
+				cacheWrite: 0,
+			},
+			contextWindow: 256000,
+			maxTokens: 32768,
+		} satisfies Model<"openai-completions">,
+	},
 	"amazon-bedrock": {
 		"amazon.nova-2-lite-v1:0": {
 			id: "amazon.nova-2-lite-v1:0",
@@ -9949,8 +9987,8 @@ export const MODELS = {
 				cacheRead: 0.06,
 				cacheWrite: 0,
 			},
-			contextWindow: 256000,
-			maxTokens: 80000,
+			contextWindow: 262144,
+			maxTokens: 144000,
 		} satisfies Model<"openai-completions">,
 		"meta-llama/llama-3.1-70b-instruct": {
 			id: "meta-llama/llama-3.1-70b-instruct",
@@ -10154,7 +10192,7 @@ export const MODELS = {
 				cacheWrite: 0,
 			},
 			contextWindow: 1048576,
-			maxTokens: 512000,
+			maxTokens: 131072,
 		} satisfies Model<"openai-completions">,
 		"mistralai/codestral-2508": {
 			id: "mistralai/codestral-2508",
@@ -10490,7 +10528,7 @@ export const MODELS = {
 			cost: {
 				input: 0.6,
 				output: 2.5,
-				cacheRead: 0,
+				cacheRead: 0.6,
 				cacheWrite: 0,
 			},
 			contextWindow: 262144,
@@ -10677,8 +10715,8 @@ export const MODELS = {
 			input: ["text"],
 			cost: {
 				input: 0.5,
-				output: 2.5,
-				cacheRead: 0.15,
+				output: 2.2,
+				cacheRead: 0.1,
 				cacheWrite: 0,
 			},
 			contextWindow: 1000000,
@@ -10869,7 +10907,7 @@ export const MODELS = {
 				cacheWrite: 0,
 			},
 			contextWindow: 1047576,
-			maxTokens: 32768,
+			maxTokens: 4096,
 		} satisfies Model<"openai-completions">,
 		"openai/gpt-4.1-nano": {
 			id: "openai/gpt-4.1-nano",
@@ -10899,7 +10937,7 @@ export const MODELS = {
 			cost: {
 				input: 2.5,
 				output: 10,
-				cacheRead: 0,
+				cacheRead: 1.25,
 				cacheWrite: 0,
 			},
 			contextWindow: 128000,
@@ -11035,11 +11073,11 @@ export const MODELS = {
 			cost: {
 				input: 0.25,
 				output: 2,
-				cacheRead: 0.025,
+				cacheRead: 0.03,
 				cacheWrite: 0,
 			},
 			contextWindow: 400000,
-			maxTokens: 128000,
+			maxTokens: 4096,
 		} satisfies Model<"openai-completions">,
 		"openai/gpt-5-nano": {
 			id: "openai/gpt-5-nano",
@@ -11103,11 +11141,11 @@ export const MODELS = {
 			cost: {
 				input: 1.25,
 				output: 10,
-				cacheRead: 0.13,
+				cacheRead: 0.125,
 				cacheWrite: 0,
 			},
 			contextWindow: 128000,
-			maxTokens: 32000,
+			maxTokens: 16384,
 		} satisfies Model<"openai-completions">,
 		"openai/gpt-5.1-codex": {
 			id: "openai/gpt-5.1-codex",
@@ -11194,7 +11232,7 @@ export const MODELS = {
 				cacheWrite: 0,
 			},
 			contextWindow: 128000,
-			maxTokens: 16384,
+			maxTokens: 32000,
 		} satisfies Model<"openai-completions">,
 		"openai/gpt-5.2-codex": {
 			id: "openai/gpt-5.2-codex",
@@ -12309,7 +12347,7 @@ export const MODELS = {
 				cacheWrite: 0,
 			},
 			contextWindow: 262144,
-			maxTokens: 262144,
+			maxTokens: 65536,
 		} satisfies Model<"openai-completions">,
 		"qwen/qwen3.5-27b": {
 			id: "qwen/qwen3.5-27b",
@@ -12376,8 +12414,8 @@ export const MODELS = {
 				cacheRead: 0,
 				cacheWrite: 0,
 			},
-			contextWindow: 262144,
-			maxTokens: 262144,
+			contextWindow: 256000,
+			maxTokens: 32768,
 		} satisfies Model<"openai-completions">,
 		"qwen/qwen3.5-flash-02-23": {
 			id: "qwen/qwen3.5-flash-02-23",
@@ -12989,7 +13027,7 @@ export const MODELS = {
 				cacheWrite: 0,
 			},
 			contextWindow: 1048576,
-			maxTokens: 262144,
+			maxTokens: 131072,
 		} satisfies Model<"openai-completions">,
 		"~anthropic/claude-fable-latest": {
 			id: "~anthropic/claude-fable-latest",
@@ -15107,7 +15145,7 @@ export const MODELS = {
 				cacheWrite: 0,
 			},
 			contextWindow: 262144,
-			maxTokens: 4096,
+			maxTokens: 262144,
 		} satisfies Model<"anthropic-messages">,
 		"nvidia/nemotron-3-super-120b-a12b": {
 			id: "nvidia/nemotron-3-super-120b-a12b",
