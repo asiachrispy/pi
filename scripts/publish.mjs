@@ -15,6 +15,7 @@ const packages = [
 const dryRun = process.argv.includes("--dry-run");
 const unknownArgs = process.argv.slice(2).filter((arg) => arg !== "--dry-run");
 const publishScope = process.env.PI_NPM_SCOPE?.trim();
+const publishRepositoryUrl = process.env.PI_NPM_REPOSITORY_URL?.trim();
 const sourceScope = "@earendil-works";
 const publishProvenance = process.env.PI_NPM_PROVENANCE !== "0";
 const stagingRoots = [];
@@ -91,6 +92,13 @@ function rewritePackageJsonForTarget(directory, sourceName, version) {
 	const packageJsonPath = join(directory, "package.json");
 	const packageJson = readPackageJson(directory);
 	packageJson.name = targetName(sourceName);
+	if (publishRepositoryUrl) {
+		if (packageJson.repository && typeof packageJson.repository === "object") {
+			packageJson.repository.url = publishRepositoryUrl;
+		} else {
+			packageJson.repository = { type: "git", url: publishRepositoryUrl };
+		}
+	}
 	rewriteDependencyMap(packageJson.dependencies, version);
 	rewriteDependencyMap(packageJson.optionalDependencies, version);
 	rewriteDependencyMap(packageJson.peerDependencies, version);
