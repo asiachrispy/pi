@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added prompt caching for Mistral requests using the pi session ID as `prompt_cache_key`, including cached-token usage and cost accounting ([#5854](https://github.com/earendil-works/pi/issues/5854)).
+- Added the OpenRouter Fusion alias as `openrouter/fusion` ([#5866](https://github.com/earendil-works/pi/pull/5866) by [@dannote](https://github.com/dannote)).
+
 ## [0.79.9] - 2026-06-17
 
 ### Fixed
@@ -10,12 +15,13 @@
 
 ## [0.79.8] - 2026-06-17
 
-## [0.79.7] - 2026-06-17
+## [0.79.7] - 2026-06-18
 
 ### Added
 
 - Added pure `isRetryableAssistantError` and `isNonRetryableProviderLimitError` helpers in `utils/retry-classification.ts`, extracted from the agent-session retry path so the classification rules can be unit-tested independently and reused by other layers.
 - Shared `getServiceTierCostMultiplier` and `applyServiceTierPricing` between `openai-responses` and `openai-codex-responses` providers via `openai-responses-shared.ts`, removing the duplicated per-provider copies.
+- Added GLM-5.2 model to the OpenCode Go subscription model catalog ([#5860](https://github.com/earendil-works/pi/issues/5860)).
 
 ### Changed
 

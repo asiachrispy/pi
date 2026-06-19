@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### New Features
+
+- **Mistral prompt caching** - Mistral sessions now use provider-side prompt caching with session affinity and cached-token usage/cost accounting. See [API Keys](docs/providers.md#api-keys) and [Environment Variables](docs/usage.md#environment-variables).
+- **Post-compaction token estimates** - Compact results and compaction events now include estimated post-compaction token counts so clients can show the approximate context reduction. See [RPC compact](docs/rpc.md#compact) and [compaction events](docs/rpc.md#compaction_start--compaction_end).
+- **OpenRouter Fusion alias** - `openrouter/fusion` is available as a built-in OpenRouter model alias. See [API Keys](docs/providers.md#api-keys).
+
+### Added
+
+- Added inherited Mistral prompt caching using the pi session ID as `prompt_cache_key`, including cached-token usage and cost accounting ([#5854](https://github.com/earendil-works/pi/issues/5854)).
+- Added estimated post-compaction token counts to compact results and compaction events ([#5877](https://github.com/earendil-works/pi/issues/5877)).
+- Added the inherited OpenRouter Fusion alias as `openrouter/fusion` ([#5866](https://github.com/earendil-works/pi/pull/5866) by [@dannote](https://github.com/dannote)).
+
+### Fixed
+
+- Fixed compaction to refuse sessions with no eligible messages instead of producing empty summaries ([#4811](https://github.com/earendil-works/pi/issues/4811)).
+- Fixed successful overflow-triggered auto-compaction to avoid retrying completed assistant responses ([#5720](https://github.com/earendil-works/pi/issues/5720)).
+
 ## [0.79.9] - 2026-06-17
 
 ### Fixed
@@ -10,7 +27,14 @@
 
 ## [0.79.8] - 2026-06-17
 
-## [0.79.7] - 2026-06-17
+## [0.79.7] - 2026-06-18
+
+### New Features
+
+- **Automatic theme mode** - `/settings` can choose separate light and dark themes and follow terminal color-scheme changes. See [Selecting a Theme](docs/themes.md#selecting-a-theme).
+- **Self-only updates by default** - `pi update` now updates pi only, with `pi update --all` for updating pi and packages together. See [Install and Manage](docs/packages.md#install-and-manage).
+- **Extension API helpers** - extensions can use `CONFIG_DIR_NAME` for project config paths and import edit diff helpers for edit-style diffs. See [`ctx.cwd`](docs/extensions.md#ctxcwd) and [SDK Exports](docs/sdk.md#exports).
+- **Warp inline images** - Warp terminals now get inline image rendering through Kitty graphics detection. See [Image](docs/tui.md#image).
 
 ### Added
 
@@ -24,6 +48,16 @@
 - `render_mermaid` built-in tool (gated behind `renderMermaid.enabled`).
 - Added an experimental first-time setup flow behind `PI_EXPERIMENTAL=1` that asks for a dark/light theme choice (preselecting the detected appearance) and opt-in analytics data sharing on first launch with the default agent directory; opting in stores a `trackingId` in `settings.json`.
 - Added first-run interactive theme detection from the terminal background.
+- Added automatic theme mode so `/settings` can use separate light and dark themes and follow terminal color-scheme changes ([#5874](https://github.com/earendil-works/pi/pull/5874)).
+- Added inherited Warp terminal image capability detection so inline images render through Warp's Kitty graphics support ([#5841](https://github.com/earendil-works/pi/pull/5841) by [@dodiego](https://github.com/dodiego)).
+- Exported `CONFIG_DIR_NAME` from the coding-agent public API so extensions can resolve project config paths without hardcoding `.pi` ([#5869](https://github.com/earendil-works/pi/pull/5869) by [@xl0](https://github.com/xl0)).
+- Exported edit diff helpers (`generateDiffString`, `generateUnifiedPatch`, and `EditDiffResult`) from the public API for extensions that need edit-style diffs ([#5756](https://github.com/earendil-works/pi/pull/5756) by [@xl0](https://github.com/xl0)).
+
+### Changed
+
+- Changed bare `pi update` to update only pi, added `pi update --all` for updating pi and extensions together, and clarified extension update prompts.
+- Reserved `/` in theme names for automatic light/dark theme settings.
+- Updated extension docs, examples, runtime help, trust prompts, and config labels to use the configured project config directory instead of hardcoded `.pi` paths.
 
 ### Fixed
 
@@ -31,6 +65,9 @@
 - Fixed `/fork` to keep session parent chains connected when the forked path contains labels ([#5669](https://github.com/earendil-works/pi/issues/5669)).
 - Fixed `/share` and `/export` HTML exports to use the active fallback theme when the configured custom theme no longer exists ([#5596](https://github.com/earendil-works/pi/issues/5596)).
 - Fixed custom fallback model IDs with `:<thinking>` suffixes to preserve the requested thinking level when the provider template model does not advertise reasoning ([#5552](https://github.com/earendil-works/pi/issues/5552)).
+- Fixed RPC unknown-command errors to include the request id so clients do not hang waiting for a response ([#5868](https://github.com/earendil-works/pi/issues/5868)).
+- Fixed `/model` autocomplete and model selection searches to match provider/model queries regardless of whether the provider or model token is typed first.
+- Fixed the tree navigator to horizontally pan deep entries so the selected item remains readable ([#5830](https://github.com/earendil-works/pi/issues/5830)).
 
 ## [0.79.6] - 2026-06-16
 
