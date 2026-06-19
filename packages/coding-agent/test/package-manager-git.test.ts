@@ -1,21 +1,21 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PackageManagerGit } from "../src/core/package-manager-git.ts";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { PackageManagerGit, type PackageManagerGitDeps } from "../src/core/package-manager-git.ts";
 
-interface FakeDeps {
+interface FakeDeps extends PackageManagerGitDeps {
 	cwd: string;
 	agentDir: string;
 	settingsManager: { getNpmCommand(): string[] | undefined };
-	runCommand: ReturnType<typeof vi.fn>;
-	runCommandCapture: ReturnType<typeof vi.fn>;
-	runNpmCommand: ReturnType<typeof vi.fn>;
-	withProgress: ReturnType<typeof vi.fn>;
-	getTemporaryDir: ReturnType<typeof vi.fn>;
-	assertProjectTrustedForScope: ReturnType<typeof vi.fn>;
-	resolveManagedPath: ReturnType<typeof vi.fn>;
-	getLocalUpdateTarget: ReturnType<typeof vi.fn>;
+	runCommand: PackageManagerGitDeps["runCommand"] & Mock;
+	runCommandCapture: PackageManagerGitDeps["runCommandCapture"] & Mock;
+	runNpmCommand: PackageManagerGitDeps["runNpmCommand"] & Mock;
+	withProgress: PackageManagerGitDeps["withProgress"] & Mock;
+	getTemporaryDir: PackageManagerGitDeps["getTemporaryDir"] & Mock;
+	assertProjectTrustedForScope: PackageManagerGitDeps["assertProjectTrustedForScope"] & Mock;
+	resolveManagedPath: PackageManagerGitDeps["resolveManagedPath"] & Mock;
+	getLocalUpdateTarget: PackageManagerGitDeps["getLocalUpdateTarget"] & Mock;
 }
 
 function makeDeps(overrides: Partial<FakeDeps> = {}): FakeDeps {
@@ -23,14 +23,20 @@ function makeDeps(overrides: Partial<FakeDeps> = {}): FakeDeps {
 		cwd: "/cwd",
 		agentDir: "/agent",
 		settingsManager: { getNpmCommand: () => undefined },
-		runCommand: vi.fn().mockResolvedValue(undefined),
-		runCommandCapture: vi.fn().mockResolvedValue(""),
-		runNpmCommand: vi.fn().mockResolvedValue(undefined),
-		withProgress: vi.fn(async (_kind, _label, _msg, fn) => fn()),
-		getTemporaryDir: vi.fn((prefix: string, suffix?: string) => `/tmp/${prefix}-${suffix ?? "x"}`),
-		assertProjectTrustedForScope: vi.fn(),
-		resolveManagedPath: vi.fn((root: string, ...parts: string[]) => join(root, ...parts)),
-		getLocalUpdateTarget: vi.fn().mockResolvedValue({ ref: "@{upstream}", head: "h", fetchArgs: [] }),
+		runCommand: vi.fn().mockResolvedValue(undefined) as FakeDeps["runCommand"],
+		runCommandCapture: vi.fn().mockResolvedValue("") as FakeDeps["runCommandCapture"],
+		runNpmCommand: vi.fn().mockResolvedValue(undefined) as FakeDeps["runNpmCommand"],
+		withProgress: vi.fn(async (_kind, _label, _msg, fn) => fn()) as FakeDeps["withProgress"],
+		getTemporaryDir: vi.fn(
+			(prefix: string, suffix?: string) => `/tmp/${prefix}-${suffix ?? "x"}`,
+		) as FakeDeps["getTemporaryDir"],
+		assertProjectTrustedForScope: vi.fn() as FakeDeps["assertProjectTrustedForScope"],
+		resolveManagedPath: vi.fn((root: string, ...parts: string[]) =>
+			join(root, ...parts),
+		) as FakeDeps["resolveManagedPath"],
+		getLocalUpdateTarget: vi
+			.fn()
+			.mockResolvedValue({ ref: "@{upstream}", head: "h", fetchArgs: [] }) as FakeDeps["getLocalUpdateTarget"],
 		...overrides,
 	};
 }

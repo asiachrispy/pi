@@ -1,20 +1,20 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PackageManagerNpm } from "../src/core/package-manager-npm.ts";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { PackageManagerNpm, type PackageManagerNpmDeps } from "../src/core/package-manager-npm.ts";
 
-interface FakeDeps {
+interface FakeDeps extends PackageManagerNpmDeps {
 	cwd: string;
 	agentDir: string;
 	settingsManager: { getNpmCommand(): string[] | undefined };
-	runCommand: ReturnType<typeof vi.fn>;
-	runCommandSync: ReturnType<typeof vi.fn>;
-	runCommandCapture: ReturnType<typeof vi.fn>;
-	withProgress: ReturnType<typeof vi.fn>;
-	getTemporaryDir: ReturnType<typeof vi.fn>;
-	assertProjectTrustedForScope: ReturnType<typeof vi.fn>;
-	markPathIgnoredByCloudSync: ReturnType<typeof vi.fn>;
+	runCommand: PackageManagerNpmDeps["runCommand"] & Mock;
+	runCommandSync: PackageManagerNpmDeps["runCommandSync"] & Mock;
+	runCommandCapture: PackageManagerNpmDeps["runCommandCapture"] & Mock;
+	withProgress: PackageManagerNpmDeps["withProgress"] & Mock;
+	getTemporaryDir: PackageManagerNpmDeps["getTemporaryDir"] & Mock;
+	assertProjectTrustedForScope: PackageManagerNpmDeps["assertProjectTrustedForScope"] & Mock;
+	markPathIgnoredByCloudSync: PackageManagerNpmDeps["markPathIgnoredByCloudSync"] & Mock;
 }
 
 function makeDeps(overrides: Partial<FakeDeps> = {}): FakeDeps {
@@ -22,13 +22,15 @@ function makeDeps(overrides: Partial<FakeDeps> = {}): FakeDeps {
 		cwd: "/cwd",
 		agentDir: "/agent",
 		settingsManager: { getNpmCommand: () => undefined },
-		runCommand: vi.fn().mockResolvedValue(undefined),
-		runCommandSync: vi.fn().mockReturnValue(""),
-		runCommandCapture: vi.fn().mockResolvedValue('""'),
-		withProgress: vi.fn(async (_kind, _label, _msg, fn) => fn()),
-		getTemporaryDir: vi.fn((prefix: string, suffix?: string) => `/tmp/${prefix}-${suffix ?? "x"}`),
-		assertProjectTrustedForScope: vi.fn(),
-		markPathIgnoredByCloudSync: vi.fn(),
+		runCommand: vi.fn().mockResolvedValue(undefined) as FakeDeps["runCommand"],
+		runCommandSync: vi.fn().mockReturnValue("") as FakeDeps["runCommandSync"],
+		runCommandCapture: vi.fn().mockResolvedValue('""') as FakeDeps["runCommandCapture"],
+		withProgress: vi.fn(async (_kind, _label, _msg, fn) => fn()) as FakeDeps["withProgress"],
+		getTemporaryDir: vi.fn(
+			(prefix: string, suffix?: string) => `/tmp/${prefix}-${suffix ?? "x"}`,
+		) as FakeDeps["getTemporaryDir"],
+		assertProjectTrustedForScope: vi.fn() as FakeDeps["assertProjectTrustedForScope"],
+		markPathIgnoredByCloudSync: vi.fn() as FakeDeps["markPathIgnoredByCloudSync"],
 		...overrides,
 	};
 }
