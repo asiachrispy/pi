@@ -54,7 +54,7 @@ async function runCli(args: string[]): Promise<{ stdout: string; stderr: string;
 	);
 
 	return await new Promise((resolvePromise, reject) => {
-		const child = spawn(process.execPath, [cliPath, ...args], {
+		const child = spawn(process.execPath, ["--experimental-strip-types", cliPath, ...args], {
 			cwd: projectDir,
 			env: {
 				...process.env,

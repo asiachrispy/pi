@@ -11,6 +11,16 @@ function normalizeForMatch(value: string): string {
 	return value.replace(/\\/g, "/");
 }
 
+/**
+ * Skip tests that need real network access to github.com (git clone,
+ * npm fetch). Sandbox/CI without outbound network should skip these.
+ */
+function canReachGithub(): boolean {
+	if (process.env.PI_TEST_NO_NETWORK === "1") return false;
+	if (process.env.CI === "1" && process.env.PI_TEST_NETWORK_IN_CI !== "1") return false;
+	return true;
+}
+
 function pathEndsWith(actualPath: string, suffix: string): boolean {
 	return normalizeForMatch(actualPath).endsWith(normalizeForMatch(suffix));
 }
@@ -1157,7 +1167,7 @@ Content`,
 			expect(events.some((e) => e.type === "error")).toBe(true);
 		});
 
-		it("should recognize github URLs without git: prefix", async () => {
+		it("should recognize github URLs without git: prefix", { skip: !canReachGithub() }, async () => {
 			const events: ProgressEvent[] = [];
 			packageManager.setProgressCallback((event) => events.push(event));
 			const previousGitTerminalPrompt = process.env.GIT_TERMINAL_PROMPT;
