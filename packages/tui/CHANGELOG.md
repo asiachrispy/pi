@@ -2,13 +2,14 @@
 
 ## [Unreleased]
 
-## [0.79.9] - 2026-06-17
+## [0.79.9] - 2026-06-20
 
 ### Fixed
 
+- Fixed Markdown streaming code fence rendering so partial closing fences no longer make code blocks shrink or flicker while content streams ([#5846](https://github.com/earendil-works/pi/pull/5846) by [@xl0](https://github.com/xl0)).
 - Republished the `@livos` fork package at the same lockstep version as the other npm fork packages.
 
-## [0.79.8] - 2026-06-17
+## [0.79.8] - 2026-06-19
 
 ## [0.79.7] - 2026-06-18
 
