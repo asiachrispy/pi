@@ -12,7 +12,7 @@
 
 - Fixed harness compaction estimates to ignore malformed all-zero assistant usage after truncated responses ([#5526](https://github.com/earendil-works/pi/pull/5526) by [@dmmulroy](https://github.com/dmmulroy)).
 
-## [0.79.10] - 2026-06-22
+## [0.80.0] - 2026-06-22
 
 ## [0.79.9] - 2026-06-20
 
