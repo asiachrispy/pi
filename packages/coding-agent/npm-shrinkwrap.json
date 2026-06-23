@@ -1,17 +1,17 @@
 {
 	"name": "@earendil-works/pi-coding-agent",
-	"version": "0.79.9",
+	"version": "0.79.10",
 	"lockfileVersion": 3,
 	"requires": true,
 	"packages": {
 		"": {
 			"name": "@earendil-works/pi-coding-agent",
-			"version": "0.79.9",
+			"version": "0.79.10",
 			"license": "MIT",
 			"dependencies": {
-				"@earendil-works/pi-agent-core": "^0.79.9",
-				"@earendil-works/pi-ai": "^0.79.9",
-				"@earendil-works/pi-tui": "^0.79.9",
+				"@earendil-works/pi-agent-core": "^0.79.10",
+				"@earendil-works/pi-ai": "^0.79.10",
+				"@earendil-works/pi-tui": "^0.79.10",
 				"@silvia-odwyer/photon-node": "0.3.4",
 				"chalk": "5.6.2",
 				"cross-spawn": "7.0.6",
@@ -474,11 +474,11 @@
 			}
 		},
 		"node_modules/@earendil-works/pi-agent-core": {
-			"version": "0.79.9",
-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.79.9.tgz",
+			"version": "0.79.10",
+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-agent-core/-/pi-agent-core-0.79.10.tgz",
 			"license": "MIT",
 			"dependencies": {
-				"@earendil-works/pi-ai": "^0.79.9",
+				"@earendil-works/pi-ai": "^0.79.10",
 				"ignore": "7.0.5",
 				"typebox": "1.1.38",
 				"yaml": "2.9.0"
@@ -488,8 +488,8 @@
 			}
 		},
 		"node_modules/@earendil-works/pi-ai": {
-			"version": "0.79.9",
-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.79.9.tgz",
+			"version": "0.79.10",
+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-ai/-/pi-ai-0.79.10.tgz",
 			"license": "MIT",
 			"dependencies": {
 				"@anthropic-ai/sdk": "0.91.1",
@@ -512,8 +512,8 @@
 			}
 		},
 		"node_modules/@earendil-works/pi-tui": {
-			"version": "0.79.9",
-			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.79.9.tgz",
+			"version": "0.79.10",
+			"resolved": "https://registry.npmjs.org/@earendil-works/pi-tui/-/pi-tui-0.79.10.tgz",
 			"license": "MIT",
 			"dependencies": {
 				"get-east-asian-width": "1.6.0",
@@ -628,6 +628,9 @@
 			"cpu": [
 				"arm64"
 			],
+			"libc": [
+				"glibc"
+			],
 			"optional": true
 		},
 		"node_modules/@mariozechner/clipboard-linux-arm64-musl": {
@@ -643,6 +646,9 @@
 			],
 			"cpu": [
 				"arm64"
+			],
+			"libc": [
+				"musl"
 			],
 			"optional": true
 		},
@@ -660,6 +666,9 @@
 			"cpu": [
 				"riscv64"
 			],
+			"libc": [
+				"glibc"
+			],
 			"optional": true
 		},
 		"node_modules/@mariozechner/clipboard-linux-x64-gnu": {
@@ -676,6 +685,9 @@
 			"cpu": [
 				"x64"
 			],
+			"libc": [
+				"glibc"
+			],
 			"optional": true
 		},
 		"node_modules/@mariozechner/clipboard-linux-x64-musl": {
@@ -691,6 +703,9 @@
 			],
 			"cpu": [
 				"x64"
+			],
+			"libc": [
+				"musl"
 			],
 			"optional": true
 		},
@@ -1752,9 +1767,9 @@
 			}
 		},
 		"node_modules/ws": {
-			"version": "8.20.1",
-			"resolved": "https://registry.npmjs.org/ws/-/ws-8.20.1.tgz",
-			"integrity": "sha512-It4dO0K5v//JtTXuPkfEOaI3uUN87iYPnqo/ZzqCoG3g8uhA66QUMs/SrM0YK7/NAu+r4LMh/9dq2A7k+rHs+w==",
+			"version": "8.21.0",
+			"resolved": "https://registry.npmjs.org/ws/-/ws-8.21.0.tgz",
+			"integrity": "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g==",
 			"license": "MIT",
 			"peerDependencies": {
 				"bufferutil": "^4.0.1",
