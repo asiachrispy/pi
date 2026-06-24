@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyServiceTierPricing, getServiceTierCostMultiplier } from "../src/providers/openai-responses-shared.ts";
+import { applyServiceTierPricing, getServiceTierCostMultiplier } from "../src/api/openai-responses-shared.ts";
 import type { Api, Model } from "../src/types.ts";
 
 type ServiceTier = "auto" | "default" | "flex" | "priority" | undefined;
