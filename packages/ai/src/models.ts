@@ -279,27 +279,8 @@ class ModelsImpl implements MutableModels {
 	}
 }
 
-<<<<<<< HEAD
-type ModelApi<TProvider extends KnownProvider, TModelId extends string = string> = TProvider extends keyof typeof MODELS
-	? TModelId extends keyof (typeof MODELS)[TProvider]
-		? (typeof MODELS)[TProvider][TModelId] extends { api: infer TApi }
-			? TApi extends Api
-				? TApi
-				: never
-			: never
-		: never
-	: never;
-
-export function getModel<TProvider extends KnownProvider, TModelId extends string = string>(
-	provider: TProvider,
-	modelId: TModelId,
-): Model<ModelApi<TProvider, TModelId>> {
-	const providerModels = modelRegistry.get(provider);
-	return providerModels?.get(modelId as string) as Model<ModelApi<TProvider, TModelId>>;
-=======
 export function createModels(options?: CreateModelsOptions): MutableModels {
 	return new ModelsImpl(options);
->>>>>>> upstream/main
 }
 
 export interface CreateProviderOptions<TApi extends Api = Api> {
@@ -324,11 +305,6 @@ export interface CreateProviderOptions<TApi extends Api = Api> {
 	api: ProviderStreams | Partial<Record<TApi, ProviderStreams>>;
 }
 
-<<<<<<< HEAD
-export function getModels<TProvider extends KnownProvider>(provider: TProvider): Model<ModelApi<TProvider, string>>[] {
-	const models = modelRegistry.get(provider);
-	return models ? (Array.from(models.values()) as Model<ModelApi<TProvider, string>>[]) : [];
-=======
 /**
  * Builds a provider from parts. Built-in provider factories and models.json
  * custom providers both go through this. A single `api` streams all models;
@@ -395,7 +371,6 @@ export function createProvider<TApi extends Api = Api>(input: CreateProviderOpti
  */
 export function hasApi<TApi extends Api>(model: Model<Api>, api: TApi): model is Model<TApi> {
 	return model.api === api;
->>>>>>> upstream/main
 }
 
 export function calculateCost<TApi extends Api>(model: Model<TApi>, usage: Usage): Usage["cost"] {
