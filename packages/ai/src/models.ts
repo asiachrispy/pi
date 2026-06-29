@@ -231,16 +231,7 @@ class ModelsImpl implements MutableModels {
 		model: Model<Api>,
 		options: TOptions | undefined,
 	): Promise<{ requestModel: Model<Api>; requestOptions: TOptions | undefined }> {
-		const resolution = await resolveProviderAuth(
-			this.requireProvider(model),
-			model,
-			this.credentials,
-			this.authContext,
-			{
-				apiKey: options?.apiKey,
-				env: options?.env,
-			},
-		);
+		const resolution = await this.getAuth(model);
 		const auth = resolution?.auth;
 		if (!auth) return { requestModel: model, requestOptions: options };
 

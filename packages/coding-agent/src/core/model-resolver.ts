@@ -16,7 +16,7 @@ export const defaultModelPerProvider: Record<KnownProvider, string> = {
 	agnes: "sapiens-ai/agnes-2.0-pro",
 	"ant-ling": "Ring-2.6-1T",
 	anthropic: "claude-opus-4-8",
-	openai: "gpt-5.5",
+	openai: "gpt-5.4",
 	"azure-openai-responses": "gpt-5.4",
 	"openai-codex": "gpt-5.5",
 	nvidia: "nvidia/nemotron-3-super-120b-a12b",

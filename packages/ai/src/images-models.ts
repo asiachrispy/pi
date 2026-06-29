@@ -184,10 +184,7 @@ class ImagesModelsImpl implements MutableImagesModels {
 				throw new ModelsError("provider", `Unknown provider: ${model.provider}`);
 			}
 
-			const resolution = await resolveProviderAuth(provider, model, this.credentials, this.authContext, {
-				apiKey: options?.apiKey,
-				env: options?.env,
-			});
+			const resolution = await this.getAuth(model);
 			const auth = resolution?.auth;
 			if (!auth) {
 				return provider.generateImages(model, context, options);

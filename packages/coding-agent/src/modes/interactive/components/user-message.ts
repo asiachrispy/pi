@@ -23,7 +23,7 @@ export class UserMessageComponent extends Container {
 				{
 					color: (content: string) => theme.fg("userMessageText", content),
 				},
-				{ preserveOrderedListMarkers: true, preserveBackslashEscapes: true },
+				{ preserveOrderedListMarkers: true },
 			),
 		);
 		this.addChild(this.contentBox);

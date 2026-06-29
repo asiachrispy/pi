@@ -47,19 +47,13 @@ import type {
 	ToolCall,
 	ToolResultMessage,
 } from "../types.ts";
-import { normalizeProviderError } from "../utils/error-body.ts";
 import { AssistantMessageEventStream } from "../utils/event-stream.ts";
 import { providerHeadersToRecord } from "../utils/headers.ts";
 import { parseStreamingJson } from "../utils/json-parse.ts";
 import { resolveHttpProxyUrlForTarget } from "../utils/node-http-proxy.ts";
 import { getProviderEnvValue } from "../utils/provider-env.ts";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.ts";
-import {
-	adjustMaxTokensForThinking,
-	buildBaseOptions,
-	clampMaxTokensToContext,
-	clampReasoning,
-} from "./simple-options.ts";
+import { adjustMaxTokensForThinking, buildBaseOptions, clampReasoning } from "./simple-options.ts";
 import { transformMessages } from "./transform-messages.ts";
 
 export type BedrockThinkingDisplay = "summarized" | "omitted";
@@ -134,7 +128,7 @@ export const stream: StreamFunction<"bedrock-converse-stream", BedrockOptions> =
 			profile: options.profile || getProviderEnvValue("AWS_PROFILE", options.env),
 		};
 		const configuredRegion = getConfiguredBedrockRegion(options);
-		const hasAmbientConfiguredProfile = Boolean(getProviderEnvValue("AWS_PROFILE"));
+		const hasAmbientConfiguredProfile = Boolean(getProviderEnvValue("AWS_PROFILE", options.env));
 		const endpointRegion = getStandardBedrockEndpointRegion(model.baseUrl);
 		const useExplicitEndpoint = shouldUseExplicitBedrockEndpoint(
 			model.baseUrl,
@@ -328,22 +322,15 @@ const BEDROCK_DATA_RETENTION_DOCS_URL = "https://docs.aws.amazon.com/bedrock/lat
  * detection) can distinguish error categories via simple string matching.
  */
 function formatBedrockError(error: unknown): string {
-	const norm = normalizeProviderError(error);
-	// Surface the raw HTTP body (with status) when the SDK did not fold it into
-	// the message; otherwise fall back to the message. This is what stops a
-	// gateway 403 from collapsing to `Unknown: UnknownError`.
-	const core =
-		!norm.messageCarriesBody && norm.status !== undefined && norm.body !== undefined
-			? `${norm.status}: ${norm.body}`
-			: norm.message;
-	const dataRetentionHint = /data retention mode/i.test(core)
+	const message = error instanceof Error ? error.message : JSON.stringify(error);
+	const dataRetentionHint = /data retention mode/i.test(message)
 		? ` See ${BEDROCK_DATA_RETENTION_DOCS_URL} for supported data retention modes.`
 		: "";
 	if (error instanceof BedrockRuntimeServiceException) {
 		const prefix = BEDROCK_ERROR_PREFIXES[error.name] ?? error.name;
-		return `${prefix}: ${core}${dataRetentionHint}`;
+		return `${prefix}: ${message}${dataRetentionHint}`;
 	}
-	return `${core}${dataRetentionHint}`;
+	return `${message}${dataRetentionHint}`;
 }
 
 /**
@@ -387,7 +374,7 @@ export const streamSimple: StreamFunction<"bedrock-converse-stream", SimpleStrea
 	context: Context,
 	options?: SimpleStreamOptions,
 ): AssistantMessageEventStream => {
-	const base = buildBaseOptions(model, context, options, undefined);
+	const base = buildBaseOptions(model, options, undefined);
 	if (!options?.reasoning) {
 		return stream(model, context, { ...base, reasoning: undefined } satisfies BedrockOptions);
 	}
@@ -410,15 +397,13 @@ export const streamSimple: StreamFunction<"bedrock-converse-stream", SimpleStrea
 			options.thinkingBudgets,
 		);
 
-		const maxTokens = clampMaxTokensToContext(model, context, adjusted.maxTokens);
-
 		return stream(model, context, {
 			...base,
-			maxTokens,
+			maxTokens: adjusted.maxTokens,
 			reasoning: options.reasoning,
 			thinkingBudgets: {
 				...(options.thinkingBudgets || {}),
-				[clampReasoning(options.reasoning)!]: Math.min(adjusted.thinkingBudget, Math.max(0, maxTokens - 1024)),
+				[clampReasoning(options.reasoning)!]: adjusted.thinkingBudget,
 			},
 		} satisfies BedrockOptions);
 	}
