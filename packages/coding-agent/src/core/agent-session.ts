@@ -2456,13 +2456,7 @@ export class AgentSession {
 	 * Context overflow errors are NOT retryable (handled by compaction instead).
 	 */
 	private _isRetryableError(message: AssistantMessage): boolean {
-<<<<<<< HEAD
 		return isRetryableAssistantError(message, this.model?.contextWindow ?? 0);
-=======
-		// Context overflow is handled by compaction, not retry.
-		if (isContextOverflow(message, this.model?.contextWindow ?? 0)) return false;
-		return isRetryableAssistantError(message);
->>>>>>> upstream/main
 	}
 
 	/**
