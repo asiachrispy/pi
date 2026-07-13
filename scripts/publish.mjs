@@ -205,35 +205,50 @@ console.log(
 );
 
 try {
-	for (const pkg of packages) {
+	const packageStates = packages.map((pkg) => {
 		const version = packageVersions.get(pkg.name);
-		assertBuildOutputExists(pkg.directory);
 		const publishName = targetName(pkg.name);
 		const publishDirectory = createScopedPublishDirectory(pkg);
-		const published = isPublished(publishName, version);
+		return {
+			...pkg,
+			version,
+			publishName,
+			publishDirectory,
+			published: false,
+		};
+	});
 
-		if (dryRun) {
-			if (published) {
-				console.log(`${publishName}@${version} is already published; validating package contents only.`);
-			} else {
-				console.log(`${publishName}@${version} is not published; validating package contents before publish.`);
-			}
-			validatePack(publishDirectory);
-			console.log();
-			continue;
-		}
+	for (const pkg of packageStates) {
+		assertBuildOutputExists(pkg.directory);
+		pkg.published = isPublished(pkg.publishName, pkg.version);
 
-		if (published) {
-			console.log(`Skipping ${publishName}@${version}: already published\n`);
-			continue;
+		if (pkg.published) {
+			console.log(`${pkg.publishName}@${pkg.version} is already published; validating package contents only.`);
+		} else {
+			console.log(`${pkg.publishName}@${pkg.version} is not published; validating package contents before publish.`);
 		}
-
-		const publishArgs = ["publish", "--access", "public", "--ignore-scripts"];
-		if (publishProvenance) {
-			publishArgs.splice(3, 0, "--provenance");
-		}
-		run("npm", publishArgs, { cwd: publishDirectory });
+		validatePack(pkg.publishDirectory);
 		console.log();
+	}
+
+	if (dryRun) {
+		console.log("Dry run complete; skipping publication.\n");
+	} else {
+		console.log("All packages validated; starting publication.\n");
+
+		for (const pkg of packageStates) {
+			if (pkg.published) {
+				console.log(`Skipping ${pkg.publishName}@${pkg.version}: already published\n`);
+				continue;
+			}
+
+			const publishArgs = ["publish", "--access", "public", "--ignore-scripts"];
+			if (publishProvenance) {
+				publishArgs.splice(3, 0, "--provenance");
+			}
+			run("npm", publishArgs, { cwd: pkg.publishDirectory });
+			console.log();
+		}
 	}
 } finally {
 	for (const stagingRoot of stagingRoots) {
