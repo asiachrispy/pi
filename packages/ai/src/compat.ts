@@ -276,3 +276,8 @@ export async function completeSimple<TApi extends Api>(
 	const s = streamSimple(model, context, options);
 	return s.result();
 }
+
+export { clampThinkingLevel, getSupportedThinkingLevels } from "./models.ts";
+export { cleanupSessionResources } from "./session-resources.ts";
+export { isContextOverflow } from "./utils/overflow.ts";
+export { isRetryableAssistantError } from "./utils/retry-classification.ts";

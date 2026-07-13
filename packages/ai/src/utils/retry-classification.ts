@@ -19,10 +19,11 @@ export const NON_RETRYABLE_PROVIDER_LIMIT_PATTERN =
  * Error messages that signal a transient provider / transport failure that
  * is worth retrying with backoff: overload, rate limit, server errors, network
  * / connection problems, WebSocket transport close / errors, premature stream
- * endings, HTTP/2 closed before response, termination, retry-delay exceeded.
+ * endings, HTTP/2 closed before response, termination, retry-delay exceeded,
+ * and explicit provider retry guidance (OpenAI Responses / Bedrock, #6019).
  */
 export const RETRYABLE_TRANSIENT_PATTERN =
-	/overloaded|provider.?returned.?error|rate.?limit|too many requests|429|500|502|503|504|service.?unavailable|server.?error|internal.?error|network.?error|connection.?error|connection.?refused|connection.?lost|websocket.?closed|websocket.?error|other side closed|fetch failed|upstream.?connect|reset before headers|socket hang up|ended without|stream ended before message_stop|http2 request did not get a response|timed? out|timeout|terminated|retry delay/i;
+	/overloaded|provider.?returned.?error|rate.?limit|too many requests|429|500|502|503|504|service.?unavailable|server.?error|internal.?error|network.?error|connection.?error|connection.?refused|connection.?lost|websocket.?closed|websocket.?error|other side closed|fetch failed|upstream.?connect|reset before headers|socket hang up|ended without|stream ended before message_stop|http2 request did not get a response|timed? out|timeout|terminated|retry delay|you can retry your request|try your request again|please retry your request/i;
 
 export function isNonRetryableProviderLimitError(errorMessage: string): boolean {
 	return NON_RETRYABLE_PROVIDER_LIMIT_PATTERN.test(errorMessage);

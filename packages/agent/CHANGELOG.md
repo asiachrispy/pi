@@ -62,7 +62,7 @@
 - Fixed harness session names to normalize newline characters before storing labels ([#5999](https://github.com/earendil-works/pi/pull/5999) by [@haoqixu](https://github.com/haoqixu)).
 - Fixed harness compaction estimates to ignore malformed all-zero assistant usage after truncated responses ([#5526](https://github.com/earendil-works/pi/pull/5526) by [@dmmulroy](https://github.com/dmmulroy)).
 
-## [0.79.10] - 2026-06-22
+## [0.80.0] - 2026-06-22
 
 ## [0.79.9] - 2026-06-20
 

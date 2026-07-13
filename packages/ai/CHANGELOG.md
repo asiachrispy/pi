@@ -207,25 +207,11 @@ Migration guide:
 - Added prompt caching for Mistral requests using the pi session ID as `prompt_cache_key`, including cached-token usage and cost accounting ([#5854](https://github.com/earendil-works/pi/issues/5854)).
 - Added the OpenRouter Fusion alias as `openrouter/fusion` ([#5866](https://github.com/earendil-works/pi/pull/5866) by [@dannote](https://github.com/dannote)).
 
-## [0.79.9] - 2026-06-17
-
-### Fixed
-
-- Republished the `@livos` fork package to restore npm registry metadata visibility after the `0.79.8` publish left the package tarball present but the package document unavailable.
-
-## [0.79.8] - 2026-06-17
-
 ## [0.79.7] - 2026-06-18
 
 ### Added
 
-- Added pure `isRetryableAssistantError` and `isNonRetryableProviderLimitError` helpers in `utils/retry-classification.ts`, extracted from the agent-session retry path so the classification rules can be unit-tested independently and reused by other layers.
-- Shared `getServiceTierCostMultiplier` and `applyServiceTierPricing` between `openai-responses` and `openai-codex-responses` providers via `openai-responses-shared.ts`, removing the duplicated per-provider copies.
 - Added GLM-5.2 model to the OpenCode Go subscription model catalog ([#5860](https://github.com/earendil-works/pi/issues/5860)).
-
-### Changed
-
-- When Amazon Bedrock rejects an unsupported data retention mode, the error now links the AWS data retention documentation ([#5561](https://github.com/earendil-works/pi/pull/5561) by [@unexge](https://github.com/unexge)).
 
 ## [0.79.6] - 2026-06-16
 
@@ -297,13 +283,6 @@ Migration guide:
 
 - Fixed OpenAI Responses custom providers to honor `compat.supportsDeveloperRole: false` for reasoning models ([#5456](https://github.com/earendil-works/pi/issues/5456)).
 - Fixed OpenRouter routing preferences on OpenAI-compatible custom providers to send `compat.openRouterRouting` even when `baseUrl` does not point directly at OpenRouter ([#5347](https://github.com/earendil-works/pi/issues/5347)).
-
-## [0.78.2] - 2026-06-06
-
-### Fixed
-
-- Increased the OpenAI Codex Responses SSE response-header timeout to 20 seconds to reduce false-positive stalls while retaining the bounded wait introduced for zero-event hangs ([#4945](https://github.com/earendil-works/pi/issues/4945)).
-- Fixed Claude Fable 5 thinking-off requests to omit Anthropic's unsupported `thinking.type: "disabled"` payload ([#5567](https://github.com/earendil-works/pi/pull/5567) by [@tmustier](https://github.com/tmustier)).
 
 ## [0.78.1] - 2026-06-04
 
